@@ -25,6 +25,7 @@ use vulkano::{
         PipelineShaderStageCreateInfo,
     },
     shader::{ShaderModule, ShaderModuleCreateInfo},
+    sync::{self, GpuFuture},
     VulkanLibrary,
 };
 
@@ -75,11 +76,6 @@ fn main() {
             _ => 5,
         })
         .unwrap();
-    println!(
-        "Device: {}, (type: {:?})",
-        physical_device.properties().device_name,
-        physical_device.properties().device_type
-    );
     let (device, mut queues) = Device::new(
         physical_device,
         DeviceCreateInfo {
@@ -172,7 +168,7 @@ fn main() {
         [
             WriteDescriptorSet::buffer(0, data_buffer_a),
             WriteDescriptorSet::buffer(1, data_buffer_b),
-            WriteDescriptorSet::buffer(2, output_buffer),
+            WriteDescriptorSet::buffer(2, output_buffer.clone()),
         ],
         [],
     )
@@ -193,7 +189,16 @@ fn main() {
             set,
         )
         .unwrap();
-    cb.dispatch([500, 1, 1]).unwrap();
+    cb.dispatch([5, 1, 1]).unwrap();
 
-    // let cb = cb.end_render_pass()
+    let cb = cb.build().unwrap();
+
+    let future = sync::now(device)
+        .then_execute(queue, cb)
+        .unwrap()
+        .then_signal_fence_and_flush()
+        .unwrap();
+    future.wait(None).unwrap();
+    let output = output_buffer.read().unwrap();
+    dbg!(output);
 }
