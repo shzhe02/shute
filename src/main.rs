@@ -1,10 +1,11 @@
-use std::{fs::read_to_string, sync::Arc};
+use std::{fs::read_to_string, ops::Deref, sync::Arc};
 
 use naga::{
     back::spv::{self, Options},
     front::wgsl,
     valid::{Capabilities, ValidationFlags, Validator},
 };
+use shute::load_wgsl_shader;
 use vulkano::{
     buffer::{Buffer, BufferCreateInfo, BufferUsage},
     command_buffer::{
@@ -31,17 +32,7 @@ use vulkano::{
 
 fn main() {
     // === Turn wgsl shader into spirv with Naga ===
-    let doubler = read_to_string("shaders/doubler.wgsl").expect("Failed to read shader file");
-    let shader = wgsl::parse_str(&doubler).expect("Failed to parse file into shader");
-    let mut validator = Validator::new(ValidationFlags::all(), Capabilities::default());
-    let mod_info = validator.validate(&shader).expect("Invalid shader");
-    let options = Options {
-        lang_version: (1, 6),
-        ..Default::default()
-    };
-    let spv_out =
-        spv::write_vec(&shader, &mod_info, &options, None).expect("Failed to create spir-v shader");
-
+    let spv_out = load_wgsl_shader!("shaders/doubler.wgsl");
     // Starting vulkano implementation
     let library = VulkanLibrary::new().unwrap();
     let instance = Instance::new(
@@ -76,6 +67,29 @@ fn main() {
             _ => 5,
         })
         .unwrap();
+
+    // let intermediate = instance
+    //     .enumerate_physical_devices()
+    //     .unwrap()
+    //     .filter(|device| device.supported_extensions().contains(&device_ext))
+    //     .filter_map(|device| {
+    //         device
+    //             .queue_family_properties()
+    //             .iter()
+    //             .position(|q| q.queue_flags.intersects(QueueFlags::COMPUTE))
+    //             .map(|q| (device, q as u32))
+    //     });
+    // // dbg!(test);
+    // let (physical_device, queue_family_index) = intermediate
+    //     .min_by_key(|(device, _)| match device.properties().device_type {
+    //         PhysicalDeviceType::DiscreteGpu => 0,
+    //         PhysicalDeviceType::IntegratedGpu => 1,
+    //         PhysicalDeviceType::VirtualGpu => 2,
+    //         PhysicalDeviceType::Cpu => 3,
+    //         PhysicalDeviceType::Other => 4,
+    //         _ => 5,
+    //     })
+    //     .unwrap();
     let (device, mut queues) = Device::new(
         physical_device,
         DeviceCreateInfo {
@@ -189,7 +203,7 @@ fn main() {
             set,
         )
         .unwrap();
-    cb.dispatch([5, 1, 1]).unwrap();
+    cb.dispatch([500, 1, 1]).unwrap();
 
     let cb = cb.build().unwrap();
 
@@ -199,6 +213,7 @@ fn main() {
         .then_signal_fence_and_flush()
         .unwrap();
     future.wait(None).unwrap();
-    let output = output_buffer.read().unwrap();
+    let binding = output_buffer.read().unwrap();
+    let output = binding.deref().to_vec();
     dbg!(output);
 }
