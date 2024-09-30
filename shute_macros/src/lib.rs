@@ -29,14 +29,3 @@ pub fn load_wgsl_shader(path: TokenStream) -> TokenStream {
     }
     .into()
 }
-
-// pub fn get_devices() {
-//     let instance = Instance::new(
-//         VulkanLibrary::new().unwrap(),
-//         InstanceCreateInfo {
-//             flags: InstanceCreateFlags::ENUMERATE_PORTABILITY,
-//             ..Default::default()
-//         },
-//     )
-//     .unwrap();
-// }

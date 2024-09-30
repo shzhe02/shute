@@ -138,7 +138,7 @@ impl<T> ComputeDevice<T> {
     pub fn get_queue(&self) -> Arc<Queue> {
         self.queue.clone()
     }
-    pub fn execute(&self) {
+    pub fn execute(&self, group_counts: [u32; 3]) {
         let layout = &self.pipeline.layout().set_layouts()[0];
         let set = PersistentDescriptorSet::new(
             &self.descriptor_set_allocator,
@@ -166,7 +166,7 @@ impl<T> ComputeDevice<T> {
                 set,
             )
             .unwrap();
-        cb.dispatch([500, 1, 1]).unwrap();
+        cb.dispatch(group_counts).unwrap();
 
         let cb = cb.build().unwrap();
 
