@@ -3,12 +3,11 @@ name = "shute"
 version = "0.1.0"
 edition = "2021"
 
-[lib]
-proc-macro=true
-
 [dependencies]
 bytemuck = "1.18.0"
 naga = { version = "22.1.0", features = ["glsl-in", "wgsl-in", "spv-out"] }
 quote = "1.0.37"
 syn = "2.0.78"
 vulkano = { version = "0.34.1", default-features = false }
+shute_macros = { path = "./shute_macros" }
+thiserror = "1.0.64"
