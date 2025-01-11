@@ -1,14 +1,22 @@
+use rand::Rng;
 use shute::{Instance, PowerPreference};
 
-async fn test() {
+fn generate_data(dim: u32) -> Vec<f32> {
+    let mut rng = rand::thread_rng();
+    (0..dim * dim).map(|_| rng.gen::<f32>()).collect()
+}
+
+
+
+async fn compute() {
     let instance = Instance::new();
     let device = instance
         .autoselect(PowerPreference::HighPerformance)
         .await
         .unwrap();
-    dbg!(device.get_limits());
-    let shader = device.create_shader_module(include_str!("square.wgsl"), "main".to_string());
-    let data = (0..10).collect::<Vec<u32>>().to_vec();
+    let shader = device.create_shader_module("shortcut.wgsl", "main".to_string());
+    let data = generate_data(32);
+
     let mut input_buffer = device.create_buffer(
         Some("input"),
         shute::BufferType::StorageBuffer,
@@ -23,18 +31,10 @@ async fn test() {
         None,
         true,
     );
-    device
-        .execute(
-            &mut vec![vec![&mut input_buffer, &mut output_buffer]],
-            shader,
-            (data.len() as u32, 1, 1),
-        )
-        .await;
-    let output: Vec<u32> =
-        bytemuck::cast_slice(&output_buffer.read_output_data().as_ref().unwrap()).to_vec();
-    dbg!(output);
+    let mut dim_buffer = device.create_buffer(Some("dim"), shute::BufferType::UniformBuffer, , , )
+    
 }
 
 fn main() {
-    pollster::block_on(test());
+    pollster::block_on(compute());
 }
