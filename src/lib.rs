@@ -1,5 +1,7 @@
 use std::path::{Path, PathBuf};
 
+use encase::ShaderType;
+
 pub struct Instance {
     instance: wgpu::Instance,
 }
@@ -67,6 +69,27 @@ pub struct Device {
     limits: wgpu::Limits,
 }
 
+#[derive(Debug)]
+pub struct Limits {
+    max_bind_groups: u32,
+    max_bindings_per_bind_group: u32,
+    max_dynamic_uniform_buffers_per_pipeline_layout: u32,
+    max_dynamic_storage_buffers_per_pipeline_layout: u32,
+    max_uniform_buffer_binding_size: u32,
+    max_storage_buffer_binding_size: u32,
+    max_buffer_size: u64,
+    min_uniform_buffer_offset_alignment: u32,
+    min_storage_buffer_offset_alignment: u32,
+    max_compute_workgroup_storage_size: u32,
+    max_compute_invocations_per_workgroup: u32,
+    max_compute_workgroup_size_x: u32,
+    max_compute_workgroup_size_y: u32,
+    max_compute_workgroup_size_z: u32,
+    max_compute_workgroups_per_dimension: u32,
+    min_subgroup_size: u32,
+    max_subgroup_size: u32,
+}
+
 impl Device {
     pub async fn new(adapter: wgpu::Adapter) -> Result<Device, wgpu::RequestDeviceError> {
         let (device, queue) = adapter
@@ -86,8 +109,32 @@ impl Device {
             limits: adapter.limits(),
         })
     }
-    pub fn get_limits(&self) -> &wgpu::Limits {
-        &self.limits
+    pub fn get_limits(&self) -> Limits {
+        Limits {
+            max_bind_groups: self.limits.max_bind_groups,
+            max_bindings_per_bind_group: self.limits.max_bindings_per_bind_group,
+            max_dynamic_uniform_buffers_per_pipeline_layout: self
+                .limits
+                .max_dynamic_uniform_buffers_per_pipeline_layout,
+            max_dynamic_storage_buffers_per_pipeline_layout: self
+                .limits
+                .max_dynamic_storage_buffers_per_pipeline_layout,
+            max_uniform_buffer_binding_size: self.limits.max_uniform_buffer_binding_size,
+            max_storage_buffer_binding_size: self.limits.max_storage_buffer_binding_size,
+            max_buffer_size: self.limits.max_buffer_size,
+            min_uniform_buffer_offset_alignment: self.limits.min_uniform_buffer_offset_alignment,
+            min_storage_buffer_offset_alignment: self.limits.min_storage_buffer_offset_alignment,
+            max_compute_workgroup_storage_size: self.limits.max_compute_workgroup_storage_size,
+            max_compute_invocations_per_workgroup: self
+                .limits
+                .max_compute_invocations_per_workgroup,
+            max_compute_workgroup_size_x: self.limits.max_compute_workgroup_size_x,
+            max_compute_workgroup_size_y: self.limits.max_compute_workgroup_size_y,
+            max_compute_workgroup_size_z: self.limits.max_compute_workgroup_size_z,
+            max_compute_workgroups_per_dimension: self.limits.max_compute_workgroups_per_dimension,
+            min_subgroup_size: self.limits.min_subgroup_size,
+            max_subgroup_size: self.limits.max_subgroup_size,
+        }
     }
     pub fn create_shader_module(
         &self,
@@ -106,18 +153,37 @@ impl Device {
             entry_point,
         }
     }
-    pub fn create_buffer(
+    pub fn create_buffer<T: ShaderType>(
         &self,
         label: Option<&str>,
-        buffer_type: BufferType,
-        buffer_size: u64,
-        initial_data: Option<Vec<u8>>,
+        buffer_init: BufferInit<T>,
         output: bool,
     ) -> Buffer {
-        let size = if let Some(data) = &initial_data {
-            data.len() as u64
-        } else {
-            buffer_size
+        let buffer_type = match buffer_init {
+            BufferInit::StorageBufferSize(_) | BufferInit::StorageBufferContents(_) => {
+                BufferType::StorageBuffer
+            }
+            BufferInit::UniformBufferSize(_) | BufferInit::UniformBufferContents(_) => {
+                BufferType::UniformBuffer
+            }
+        };
+        let initial_data = match buffer_init {
+            BufferInit::StorageBufferContents(contents) => {
+                let mut buffer = encase::StorageBuffer::new(vec![]);
+                buffer.write(&contents).unwrap();
+                Some(buffer.into_inner())
+            }
+            BufferInit::UniformBufferContents(contents) => {
+                let mut buffer = encase::UniformBuffer::new(vec![]);
+                buffer.write(&contents).unwrap();
+                Some(buffer.into_inner())
+            }
+            _ => None,
+        };
+        let size = match buffer_init {
+            BufferInit::StorageBufferSize(s) => s,
+            BufferInit::UniformBufferSize(s) => s,
+            _ => 0,
         };
         Buffer {
             initial_data,
@@ -275,7 +341,17 @@ impl Device {
 }
 
 #[derive(Clone, Copy)]
-pub enum BufferType {
+pub enum BufferInit<T>
+where
+    T: ShaderType,
+{
+    StorageBufferSize(u32),
+    UniformBufferSize(u32),
+    StorageBufferContents(T),
+    UniformBufferContents(T),
+}
+
+enum BufferType {
     StorageBuffer,
     UniformBuffer,
 }
