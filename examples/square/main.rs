@@ -10,17 +10,21 @@ async fn test() {
     let data = (0..10).collect::<Vec<u32>>().to_vec();
     let mut input_buffer = device.create_buffer(
         Some("input"),
-        shute::BufferType::StorageBuffer,
+        shute::BufferType::StorageBuffer {
+            output: false,
+            read_only: true,
+        },
         0,
         Some(bytemuck::cast_slice(&data).to_vec()),
-        false,
     );
     let mut output_buffer = device.create_buffer(
         Some("output"),
-        shute::BufferType::StorageBuffer,
+        shute::BufferType::StorageBuffer {
+            output: true,
+            read_only: false,
+        },
         size_of_val(&data[..]) as u64,
         None,
-        true,
     );
     device
         .execute(

@@ -2,13 +2,8 @@ use wgpu::BindingResource;
 
 #[derive(Clone, Copy)]
 pub enum BufferType {
-    StorageBuffer,
+    StorageBuffer { output: bool, read_only: bool },
     UniformBuffer,
-}
-
-pub enum BufferUsage {
-    CopyDestination,
-    CopySource,
 }
 
 pub struct Buffer {

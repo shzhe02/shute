@@ -62,12 +62,16 @@ impl Device {
         buffer_type: BufferType,
         buffer_size: u64,
         initial_data: Option<Vec<u8>>,
-        output: bool,
     ) -> Buffer {
         let size = if let Some(data) = &initial_data {
             data.len() as u64
         } else {
             buffer_size
+        };
+        let output = if let BufferType::StorageBuffer { output, .. } = buffer_type {
+            output
+        } else {
+            false
         };
         Buffer::new(
             buffer_type,
@@ -79,10 +83,10 @@ impl Device {
                 size,
                 usage: {
                     let buffer_type = match buffer_type {
-                        BufferType::StorageBuffer => wgpu::BufferUsages::STORAGE,
+                        BufferType::StorageBuffer { .. } => wgpu::BufferUsages::STORAGE,
                         BufferType::UniformBuffer => wgpu::BufferUsages::UNIFORM,
                     };
-                    buffer_type | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC
+                    buffer_type | wgpu::BufferUsages::COPY_SRC | wgpu::BufferUsages::COPY_DST
                 },
                 mapped_at_creation: false,
             }),
@@ -115,8 +119,8 @@ impl Device {
                         visibility: wgpu::ShaderStages::COMPUTE,
                         ty: wgpu::BindingType::Buffer {
                             ty: match buffer.buffer_type() {
-                                BufferType::StorageBuffer => {
-                                    wgpu::BufferBindingType::Storage { read_only: false }
+                                BufferType::StorageBuffer { read_only, .. } => {
+                                    wgpu::BufferBindingType::Storage { read_only }
                                 }
                                 BufferType::UniformBuffer => wgpu::BufferBindingType::Uniform,
                             },
