@@ -1,12 +1,10 @@
 use rand::Rng;
-use shute::{Instance, PowerPreference};
+use shute::{Buffer, Instance, PowerPreference, ShaderType};
 
 fn generate_data(dim: u32) -> Vec<f32> {
     let mut rng = rand::thread_rng();
     (0..dim * dim).map(|_| rng.gen::<f32>()).collect()
 }
-
-
 
 async fn compute() {
     let instance = Instance::new();
@@ -19,20 +17,29 @@ async fn compute() {
 
     let mut input_buffer = device.create_buffer(
         Some("input"),
-        shute::BufferType::StorageBuffer,
-        0,
-        Some(bytemuck::cast_slice(&data).to_vec()),
-        false,
+        shute::BufferType::StorageBuffer {
+            output: true,
+            read_only: true,
+        },
+        shute::BufferInit::WithData(data),
     );
     let mut output_buffer = device.create_buffer(
         Some("output"),
-        shute::BufferType::StorageBuffer,
-        size_of_val(&data[..]) as u64,
-        None,
-        true,
+        shute::BufferType::StorageBuffer {
+            output: true,
+            read_only: false,
+        },
+        shute::BufferInit::WithSize(input_buffer.size()),
     );
-    let mut dim_buffer = device.create_buffer(Some("dim"), shute::BufferType::UniformBuffer, , , )
-    
+    let mut dim_buffer = device.create_buffer(
+        Some("dim"),
+        shute::BufferType::UniformBuffer,
+        shute::BufferInit::WithData(32u32),
+    );
+    let shader = device.create_shader_module("shortcut.wgsl", "main".to_string());
+    let mut groups: Vec<Vec<&mut Buffer<&dyn ShaderType>>> =
+        vec![vec![&mut input_buffer, &mut output_buffer, &mut dim_buffer]];
+    device.execute(&mut groups, shader, (32, 32, 1));
 }
 
 fn main() {

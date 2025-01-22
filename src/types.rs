@@ -18,3 +18,5 @@ impl ShaderModule {
         &self.entry_point
     }
 }
+
+pub trait ShaderType: encase::ShaderType + encase::internal::WriteInto {}

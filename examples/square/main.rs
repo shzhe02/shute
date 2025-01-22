@@ -14,23 +14,22 @@ async fn test() {
             output: false,
             read_only: true,
         },
-        0,
-        Some(bytemuck::cast_slice(&data).to_vec()),
+        shute::BufferInit::WithData(data),
     );
+    let size = input_buffer.size();
     let mut output_buffer = device.create_buffer(
         Some("output"),
         shute::BufferType::StorageBuffer {
             output: true,
             read_only: false,
         },
-        size_of_val(&data[..]) as u64,
-        None,
+        shute::BufferInit::WithSize(size),
     );
     device
         .execute(
             &mut vec![vec![&mut input_buffer, &mut output_buffer]],
             shader,
-            (data.len() as u32, 1, 1),
+            (size, 1, 1),
         )
         .await;
     let output: Vec<u32> =

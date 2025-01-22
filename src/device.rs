@@ -1,8 +1,9 @@
 use std::path::{Path, PathBuf};
 
 use crate::{
-    buffer::{Buffer, BufferType},
+    buffer::{Buffer, BufferInit, BufferType},
     types::ShaderModule,
+    ShaderType,
 };
 
 pub struct Device {
@@ -56,18 +57,13 @@ impl Device {
             entry_point,
         )
     }
-    pub fn create_buffer(
+    pub fn create_buffer<T: ShaderType>(
         &self,
         label: Option<&str>,
         buffer_type: BufferType,
-        buffer_size: u64,
-        initial_data: Option<Vec<u8>>,
-    ) -> Buffer {
-        let size = if let Some(data) = &initial_data {
-            data.len() as u64
-        } else {
-            buffer_size
-        };
+        init_with: BufferInit<T>,
+    ) -> Buffer<T> {
+        let size = init_with.size(buffer_type) as u64;
         let output = if let BufferType::StorageBuffer { output, .. } = buffer_type {
             output
         } else {
@@ -75,9 +71,8 @@ impl Device {
         };
         Buffer::new(
             buffer_type,
-            initial_data,
+            init_with,
             None,
-            size,
             self.device.create_buffer(&wgpu::BufferDescriptor {
                 label,
                 size,
@@ -102,12 +97,14 @@ impl Device {
             },
         )
     }
-    pub async fn execute(
+    pub async fn execute<T>(
         &self,
-        buffers: &mut Vec<Vec<&mut Buffer>>,
+        buffers: &mut Vec<Vec<&mut Buffer<T>>>,
         shader_module: ShaderModule,
         workgroup_dimensions: (u32, u32, u32),
-    ) {
+    ) where
+        T: ShaderType,
+    {
         let (bind_group_layouts, bind_groups): (Vec<_>, Vec<_>) = buffers
             .iter()
             .map(|group| {
@@ -173,9 +170,9 @@ impl Device {
             });
         for buffer_group in buffers.iter() {
             for buffer in buffer_group {
-                if let Some(initial_data) = &buffer.initial_data() {
+                if let BufferInit::WithData(_) = &buffer.init_with() {
                     self.queue
-                        .write_buffer(&buffer.buffer(), 0, &initial_data[..]);
+                        .write_buffer(&buffer.buffer(), 0, &buffer.init_data().unwrap()[..]);
                 }
             }
         }
@@ -200,7 +197,13 @@ impl Device {
         for buffer_group in buffers.iter() {
             for buffer in buffer_group {
                 if let Some(staging) = buffer.staging() {
-                    encoder.copy_buffer_to_buffer(buffer.buffer(), 0, &staging, 0, buffer.size());
+                    encoder.copy_buffer_to_buffer(
+                        buffer.buffer(),
+                        0,
+                        &staging,
+                        0,
+                        buffer.size() as u64,
+                    );
                 }
             }
         }
