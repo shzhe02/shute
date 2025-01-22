@@ -1,3 +1,5 @@
+use wgpu::BindingResource;
+
 #[derive(Clone, Copy)]
 pub enum BufferType {
     StorageBuffer,
@@ -10,7 +12,7 @@ pub enum BufferUsage {
 }
 
 pub struct Buffer {
-    binding_type: BufferType,
+    buffer_type: BufferType,
     initial_data: Option<Vec<u8>>,
     output_data: Option<Vec<u8>>,
     size: u64,
@@ -20,7 +22,7 @@ pub struct Buffer {
 
 impl Buffer {
     pub fn new(
-        binding_type: BufferType,
+        buffer_type: BufferType,
         initial_data: Option<Vec<u8>>,
         output_data: Option<Vec<u8>>,
         size: u64,
@@ -28,7 +30,7 @@ impl Buffer {
         staging: Option<wgpu::Buffer>,
     ) -> Self {
         Self {
-            binding_type,
+            buffer_type,
             initial_data,
             output_data,
             size,
@@ -36,13 +38,28 @@ impl Buffer {
             staging,
         }
     }
-    fn write_output_data(&mut self, data: Vec<u8>) {
+    pub fn write_output_data(&mut self, data: Vec<u8>) {
         self.output_data = Some(data);
     }
     pub fn read_output_data(&self) -> &Option<Vec<u8>> {
         &self.output_data
     }
-    pub fn get_size(&self) -> u64 {
+    pub fn size(&self) -> u64 {
         self.size
+    }
+    pub fn buffer_type(&self) -> BufferType {
+        self.buffer_type
+    }
+    pub fn as_entire_binding(&self) -> BindingResource<'_> {
+        self.buffer.as_entire_binding()
+    }
+    pub fn buffer(&self) -> &wgpu::Buffer {
+        &self.buffer
+    }
+    pub fn initial_data(&self) -> &Option<Vec<u8>> {
+        &self.initial_data
+    }
+    pub fn staging(&self) -> &Option<wgpu::Buffer> {
+        &self.staging
     }
 }

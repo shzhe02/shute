@@ -6,7 +6,6 @@ async fn test() {
         .autoselect(PowerPreference::HighPerformance)
         .await
         .unwrap();
-    dbg!(device.get_limits());
     let shader = device.create_shader_module(include_str!("square.wgsl"), "main".to_string());
     let data = (0..10).collect::<Vec<u32>>().to_vec();
     let mut input_buffer = device.create_buffer(

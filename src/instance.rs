@@ -1,4 +1,7 @@
-use crate::types::{Adapter, PowerPreference};
+use crate::{
+    device::Device,
+    types::{Adapter, PowerPreference},
+};
 
 pub struct Instance {
     instance: wgpu::Instance,
@@ -22,7 +25,7 @@ impl Instance {
         }
     }
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn get_devices(&self) -> Vec<Adapter> {
+    pub fn devices(&self) -> Vec<Adapter> {
         self.instance.enumerate_adapters(wgpu::Backends::all())
     }
     pub async fn autoselect(
@@ -38,21 +41,6 @@ impl Instance {
             })
             .await
             .unwrap();
-        let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    label: None,
-                    required_features: wgpu::Features::empty(),
-                    required_limits: adapter.limits(),
-                    memory_hints: wgpu::MemoryHints::Performance,
-                },
-                None,
-            )
-            .await?;
-        Ok(Device {
-            device,
-            queue,
-            limits: adapter.limits(),
-        })
+        Device::from_adapter(adapter).await
     }
 }

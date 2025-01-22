@@ -12,7 +12,7 @@ pub struct Device {
 }
 
 impl Device {
-    pub async fn new(adapter: wgpu::Adapter) -> Result<Device, wgpu::RequestDeviceError> {
+    pub async fn from_adapter(adapter: wgpu::Adapter) -> Result<Device, wgpu::RequestDeviceError> {
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
@@ -30,7 +30,14 @@ impl Device {
             limits: adapter.limits(),
         })
     }
-    pub fn get_limits(&self) -> &wgpu::Limits {
+    pub fn new(device: wgpu::Device, queue: wgpu::Queue, limits: wgpu::Limits) -> Self {
+        Self {
+            device,
+            queue,
+            limits,
+        }
+    }
+    pub fn limits(&self) -> &wgpu::Limits {
         &self.limits
     }
     pub fn create_shader_module(
@@ -40,15 +47,14 @@ impl Device {
     ) -> ShaderModule {
         let mut path_buf = PathBuf::new();
         path_buf.push(path);
-        ShaderModule {
-            module: self
-                .device
+        ShaderModule::new(
+            self.device
                 .create_shader_module(wgpu::ShaderModuleDescriptor {
                     label: Some(&path_buf.display().to_string()),
                     source: wgpu::ShaderSource::Wgsl(path_buf.to_string_lossy()),
                 }),
             entry_point,
-        }
+        )
     }
     pub fn create_buffer(
         &self,
@@ -108,7 +114,7 @@ impl Device {
                         binding: binding as u32,
                         visibility: wgpu::ShaderStages::COMPUTE,
                         ty: wgpu::BindingType::Buffer {
-                            ty: match buffer.binding_type {
+                            ty: match buffer.buffer_type() {
                                 BufferType::StorageBuffer => {
                                     wgpu::BufferBindingType::Storage { read_only: false }
                                 }
@@ -125,7 +131,7 @@ impl Device {
                     .enumerate()
                     .map(|(binding, buffer)| wgpu::BindGroupEntry {
                         binding: binding as u32,
-                        resource: buffer.buffer.as_entire_binding(),
+                        resource: buffer.as_entire_binding(),
                     })
                     .collect();
                 let layout =
@@ -156,16 +162,16 @@ impl Device {
             .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
                 label: None,
                 layout: Some(&pipeline_layout),
-                module: &shader_module.module,
-                entry_point: Some(&shader_module.entry_point),
+                module: &shader_module.module(),
+                entry_point: Some(&shader_module.entry_point()),
                 compilation_options: Default::default(),
                 cache: None,
             });
         for buffer_group in buffers.iter() {
             for buffer in buffer_group {
-                if let Some(initial_data) = &buffer.initial_data {
+                if let Some(initial_data) = &buffer.initial_data() {
                     self.queue
-                        .write_buffer(&buffer.buffer, 0, &initial_data[..]);
+                        .write_buffer(&buffer.buffer(), 0, &initial_data[..]);
                 }
             }
         }
@@ -189,16 +195,16 @@ impl Device {
         }
         for buffer_group in buffers.iter() {
             for buffer in buffer_group {
-                if let Some(staging) = &buffer.staging {
-                    encoder.copy_buffer_to_buffer(&buffer.buffer, 0, &staging, 0, buffer.size);
+                if let Some(staging) = buffer.staging() {
+                    encoder.copy_buffer_to_buffer(buffer.buffer(), 0, &staging, 0, buffer.size());
                 }
             }
         }
         self.queue.submit(Some(encoder.finish()));
         for buffer_group in buffers.iter_mut() {
             for buffer in buffer_group {
-                let mut output_data: Vec<u8> = vec![0; buffer.size as usize];
-                if let Some(staging) = &buffer.staging {
+                let mut output_data: Vec<u8> = vec![0; buffer.size() as usize];
+                if let Some(staging) = buffer.staging() {
                     let slice = staging.slice(..);
                     let (tx, rx) = flume::bounded(1);
                     slice.map_async(wgpu::MapMode::Read, move |r| tx.send(r).unwrap());
@@ -210,7 +216,7 @@ impl Device {
                     }
                     staging.unmap();
                 }
-                if buffer.staging.is_some() {
+                if buffer.staging().is_some() {
                     buffer.write_output_data(output_data);
                 }
             }
