@@ -1,9 +1,10 @@
 use std::path::{Path, PathBuf};
 
+use encase::{internal::WriteInto, ShaderType};
+
 use crate::{
-    buffer::{Buffer, BufferInit, BufferType},
+    buffer::{Buffer, BufferContents, BufferInit, BufferType},
     types::ShaderModule,
-    ShaderType,
 };
 
 pub struct Device {
@@ -57,54 +58,38 @@ impl Device {
             entry_point,
         )
     }
-    pub fn create_buffer<T: ShaderType>(
+    pub fn create_buffer<T: ShaderType + WriteInto>(
         &self,
         label: Option<&str>,
         buffer_type: BufferType,
         init_with: BufferInit<T>,
-    ) -> Buffer<T> {
-        let size = init_with.size(buffer_type) as u64;
-        let output = if let BufferType::StorageBuffer { output, .. } = buffer_type {
-            output
-        } else {
-            false
-        };
-        Buffer::new(
-            buffer_type,
-            init_with,
-            None,
-            self.device.create_buffer(&wgpu::BufferDescriptor {
-                label,
-                size,
-                usage: {
-                    let buffer_type = match buffer_type {
-                        BufferType::StorageBuffer { .. } => wgpu::BufferUsages::STORAGE,
-                        BufferType::UniformBuffer => wgpu::BufferUsages::UNIFORM,
-                    };
-                    buffer_type | wgpu::BufferUsages::COPY_SRC | wgpu::BufferUsages::COPY_DST
-                },
-                mapped_at_creation: false,
-            }),
-            if output {
-                Some(self.device.create_buffer(&wgpu::BufferDescriptor {
-                    label,
-                    size,
-                    usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-                    mapped_at_creation: false,
-                }))
-            } else {
-                None
+    ) -> Buffer {
+        let buffer_contents = match init_with {
+            BufferInit::WithSize(size) => BufferContents::Size(size),
+            BufferInit::WithData(data) => match buffer_type {
+                BufferType::StorageBuffer { .. } => {
+                    let mut buffer = encase::StorageBuffer::new(vec![]);
+                    buffer.write(&data).unwrap();
+                    BufferContents::Data(buffer.into_inner())
+                }
+                BufferType::UniformBuffer => {
+                    let mut buffer = encase::UniformBuffer::new(vec![]);
+                    buffer.write(&data).unwrap();
+                    BufferContents::Data(buffer.into_inner())
+                }
             },
-        )
+        };
+        Buffer::new(label, self, buffer_type, buffer_contents)
     }
-    pub async fn execute<T>(
+    pub fn device(&self) -> &wgpu::Device {
+        &self.device
+    }
+    pub async fn execute(
         &self,
-        buffers: &mut Vec<Vec<&mut Buffer<T>>>,
+        buffers: &mut Vec<Vec<&mut Buffer>>,
         shader_module: ShaderModule,
         workgroup_dimensions: (u32, u32, u32),
-    ) where
-        T: ShaderType,
-    {
+    ) {
         let (bind_group_layouts, bind_groups): (Vec<_>, Vec<_>) = buffers
             .iter()
             .map(|group| {
@@ -170,9 +155,8 @@ impl Device {
             });
         for buffer_group in buffers.iter() {
             for buffer in buffer_group {
-                if let BufferInit::WithData(_) = &buffer.init_with() {
-                    self.queue
-                        .write_buffer(&buffer.buffer(), 0, &buffer.init_data().unwrap()[..]);
+                if let Some(data) = &buffer.data() {
+                    self.queue.write_buffer(&buffer.buffer(), 0, &data[..]);
                 }
             }
         }

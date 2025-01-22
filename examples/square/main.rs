@@ -23,7 +23,7 @@ async fn test() {
             output: true,
             read_only: false,
         },
-        shute::BufferInit::WithSize(size),
+        shute::BufferInit::<Vec<u32>>::WithSize(size),
     );
     device
         .execute(

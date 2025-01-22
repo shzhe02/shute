@@ -1,5 +1,5 @@
 use rand::Rng;
-use shute::{Buffer, Instance, PowerPreference, ShaderType};
+use shute::{Buffer, Instance, PowerPreference};
 
 fn generate_data(dim: u32) -> Vec<f32> {
     let mut rng = rand::thread_rng();
@@ -12,8 +12,11 @@ async fn compute() {
         .autoselect(PowerPreference::HighPerformance)
         .await
         .unwrap();
-    let shader = device.create_shader_module("shortcut.wgsl", "main".to_string());
-    let data = generate_data(32);
+    let dim = 32;
+    let data = generate_data(dim);
+    for line in data.chunks(32) {
+        println!("{:.2?}", line);
+    }
 
     let mut input_buffer = device.create_buffer(
         Some("input"),
@@ -29,15 +32,15 @@ async fn compute() {
             output: true,
             read_only: false,
         },
-        shute::BufferInit::WithSize(input_buffer.size()),
+        shute::BufferInit::<Vec<f32>>::WithSize(input_buffer.size()),
     );
     let mut dim_buffer = device.create_buffer(
         Some("dim"),
         shute::BufferType::UniformBuffer,
-        shute::BufferInit::WithData(32u32),
+        shute::BufferInit::WithData(dim),
     );
-    let shader = device.create_shader_module("shortcut.wgsl", "main".to_string());
-    let mut groups: Vec<Vec<&mut Buffer<&dyn ShaderType>>> =
+    let shader = device.create_shader_module(include_str!("shortcut.wgsl"), "main".to_string());
+    let mut groups: Vec<Vec<&mut Buffer>> =
         vec![vec![&mut input_buffer, &mut output_buffer, &mut dim_buffer]];
     device.execute(&mut groups, shader, (32, 32, 1));
 }
