@@ -1,6 +1,6 @@
+use encase::ShaderType;
 use rand::Rng;
 use shute::{Buffer, Instance, PowerPreference};
-use std::time::Instant;
 
 fn generate_data(dim: usize) -> Vec<u32> {
     let mut rng = rand::thread_rng();
@@ -15,13 +15,22 @@ fn divup(a: u32, b: u32) -> u32 {
     (a + b - 1) / b
 }
 
-async fn compute(data: &Vec<u32>, dim: u32) -> Vec<u32> {
+fn roundup(a: u32, b: u32) -> u32 {
+    divup(a, b) * b
+}
+
+#[derive(ShaderType)]
+struct Input {
+    dim: u32,
+    nn: u32,
+}
+
+async fn compute(data: &Vec<u32>, dim: u32, nn: u32) -> Vec<u32> {
     let instance = Instance::new();
     let device = instance
         .autoselect(PowerPreference::HighPerformance)
         .await
         .unwrap();
-    dbg!(device.limits());
 
     let mut input_buffer = device.create_buffer(
         Some("input"),
@@ -42,72 +51,29 @@ async fn compute(data: &Vec<u32>, dim: u32) -> Vec<u32> {
     let mut dim_buffer = device.create_buffer(
         Some("dim"),
         shute::BufferType::UniformBuffer,
-        shute::BufferInit::WithData(dim),
+        shute::BufferInit::WithData(Input { dim, nn }),
     );
     let mut groups: Vec<Vec<&mut Buffer>> =
         vec![vec![&mut input_buffer, &mut output_buffer, &mut dim_buffer]];
     device.send_all_data_to_device(&groups);
     let shader = device.create_shader_module(include_str!("shortcut.wgsl"), "main".to_string());
-    let now = Instant::now();
     device
         .execute(&groups, shader, (divup(dim, 16), divup(dim, 16), 1))
         .await;
-    let elapsed = now.elapsed();
-    println!("compute completed in: {:.2?}", elapsed);
     device.fetch_all_data_from_device(&mut groups).await;
     let output: Vec<u32> =
         bytemuck::cast_slice(&output_buffer.read_output_data().as_ref().unwrap()).to_vec();
-    output
-}
-// V1 cpu compute
-fn cpu_compute(data: &Vec<u32>, dim: u32) -> Vec<u32> {
-    let dim = dim as usize;
-    let mut transposed = vec![0; data.len()];
-    for i in 0..dim {
-        for j in 0..dim {
-            transposed[dim * j + i] = data[dim * i + j];
-        }
-    }
-    let mut output = vec![0; dim * dim];
-    for i in 0..dim {
-        for j in 0..dim {
-            let mut smallest = u32::MAX;
-            for k in 0..dim {
-                let sum = data[dim * i + k] + transposed[dim * j + k];
-                smallest = std::cmp::min(sum, smallest);
-            }
-            output[dim * i + j] = smallest;
-        }
-    }
+
     output
 }
 
 fn main() {
-    let test_for_correctness = false;
-    let dim = 1000u32;
+    use std::time::Instant;
+    let dim = 4000u32;
+    let nn = roundup(dim, 64);
     let data = generate_data(dim as usize);
     let now = Instant::now();
-    let gpu_result = pollster::block_on(compute(&data, dim));
+    pollster::block_on(compute(&data, dim, nn));
     let gpu_elapsed = now.elapsed();
-    if !test_for_correctness {
-        println!("GPU took: {:.2?}", gpu_elapsed);
-    } else {
-        let now = Instant::now();
-        let cpu_result = cpu_compute(&data, dim);
-        let cpu_elapsed = now.elapsed();
-        println!(
-            "GPU took: {:.2?}, CPU took: {:.2?}",
-            gpu_elapsed, cpu_elapsed
-        );
-        println!("Verifying correctness...");
-        if cpu_result
-            .iter()
-            .zip(gpu_result.iter())
-            .all(|(a, b)| a == b)
-        {
-            println!("Results are correct.");
-        } else {
-            println!("Results are inconsistent.");
-        }
-    }
+    println!("GPU took: {:.2?}", gpu_elapsed);
 }
