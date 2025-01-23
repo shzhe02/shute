@@ -46,16 +46,6 @@ impl Buffer {
         buffer_type: BufferType,
         contents: BufferContents,
     ) -> Self {
-        //     if output {
-        //         Some(self.device.create_buffer(&wgpu::BufferDescriptor {
-        //             label,
-        //             size,
-        //             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-        //             mapped_at_creation: false,
-        //         }))
-        //     } else {
-        //         None
-        //     },
         let size: u64 = match &contents {
             BufferContents::Size(size) => *size as u64,
             BufferContents::Data(data) => data.len() as u64,
@@ -114,5 +104,32 @@ impl Buffer {
     }
     pub fn staging(&self) -> &Option<wgpu::Buffer> {
         &self.staging
+    }
+    pub fn send_data_to_device(&self, device: &Device) {
+        if let BufferContents::Data(data) = &self.contents {
+            device.queue().write_buffer(&self.buffer, 0, &data[..]);
+            device.queue().submit([]);
+        }
+    }
+    pub async fn fetch_data_from_device(&mut self, device: &Device) {
+        let mut output_data: Vec<u8> = vec![0; self.size() as usize];
+        if let Some(staging) = self.staging() {
+            let slice = staging.slice(..);
+            let (tx, rx) = flume::bounded(1);
+            slice.map_async(wgpu::MapMode::Read, move |r| tx.send(r).unwrap());
+            device
+                .device()
+                .poll(wgpu::Maintain::wait())
+                .panic_on_timeout();
+            rx.recv_async().await.unwrap().unwrap();
+            {
+                let view = slice.get_mapped_range();
+                output_data.copy_from_slice(bytemuck::cast_slice(&view));
+            }
+            staging.unmap();
+        }
+        if self.staging().is_some() {
+            self.write_output_data(output_data);
+        }
     }
 }

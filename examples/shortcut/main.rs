@@ -38,10 +38,12 @@ async fn compute(data: &Vec<u32>, dim: u32) -> Vec<u32> {
         shute::BufferType::UniformBuffer,
         shute::BufferInit::WithData(dim),
     );
-    let shader = device.create_shader_module(include_str!("shortcut.wgsl"), "main".to_string());
     let mut groups: Vec<Vec<&mut Buffer>> =
         vec![vec![&mut input_buffer, &mut output_buffer, &mut dim_buffer]];
-    device.execute(&mut groups, shader, (dim, dim, 1)).await;
+    device.send_all_data_to_device(&groups);
+    let shader = device.create_shader_module(include_str!("shortcut.wgsl"), "main".to_string());
+    device.execute(&groups, shader, (dim, dim, 1)).await;
+    device.fetch_all_data_from_device(&mut groups).await;
     let output: Vec<u32> =
         bytemuck::cast_slice(&output_buffer.read_output_data().as_ref().unwrap()).to_vec();
 

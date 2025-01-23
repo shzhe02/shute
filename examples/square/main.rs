@@ -25,13 +25,10 @@ async fn test() {
         },
         shute::BufferInit::<Vec<u32>>::WithSize(size),
     );
-    device
-        .execute(
-            &mut vec![vec![&mut input_buffer, &mut output_buffer]],
-            shader,
-            (size, 1, 1),
-        )
-        .await;
+    let mut groups = vec![vec![&mut input_buffer, &mut output_buffer]];
+    device.send_all_data_to_device(&groups);
+    device.execute(&groups, shader, (size, 1, 1)).await;
+    device.fetch_all_data_from_device(&mut groups).await;
     let output: Vec<u32> =
         bytemuck::cast_slice(&output_buffer.read_output_data().as_ref().unwrap()).to_vec();
     dbg!(output);

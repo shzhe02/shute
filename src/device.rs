@@ -84,9 +84,44 @@ impl Device {
     pub fn device(&self) -> &wgpu::Device {
         &self.device
     }
+    pub fn queue(&self) -> &wgpu::Queue {
+        &self.queue
+    }
+    pub fn send_all_data_to_device(&self, buffers: &Vec<Vec<&mut Buffer>>) {
+        for buffer_group in buffers.iter() {
+            for buffer in buffer_group {
+                if let Some(data) = &buffer.data() {
+                    self.queue.write_buffer(&buffer.buffer(), 0, &data[..]);
+                }
+            }
+        }
+        self.queue.submit([]);
+    }
+    pub async fn fetch_all_data_from_device(&self, buffers: &mut Vec<Vec<&mut Buffer>>) {
+        for buffer_group in buffers.iter_mut() {
+            for buffer in buffer_group {
+                let mut output_data: Vec<u8> = vec![0; buffer.size() as usize];
+                if let Some(staging) = buffer.staging() {
+                    let slice = staging.slice(..);
+                    let (tx, rx) = flume::bounded(1);
+                    slice.map_async(wgpu::MapMode::Read, move |r| tx.send(r).unwrap());
+                    self.device.poll(wgpu::Maintain::wait()).panic_on_timeout();
+                    rx.recv_async().await.unwrap().unwrap();
+                    {
+                        let view = slice.get_mapped_range();
+                        output_data.copy_from_slice(bytemuck::cast_slice(&view));
+                    }
+                    staging.unmap();
+                }
+                if buffer.staging().is_some() {
+                    buffer.write_output_data(output_data);
+                }
+            }
+        }
+    }
     pub async fn execute(
         &self,
-        buffers: &mut Vec<Vec<&mut Buffer>>,
+        buffers: &Vec<Vec<&mut Buffer>>,
         shader_module: ShaderModule,
         workgroup_dimensions: (u32, u32, u32),
     ) {
@@ -153,13 +188,6 @@ impl Device {
                 compilation_options: Default::default(),
                 cache: None,
             });
-        for buffer_group in buffers.iter() {
-            for buffer in buffer_group {
-                if let Some(data) = &buffer.data() {
-                    self.queue.write_buffer(&buffer.buffer(), 0, &data[..]);
-                }
-            }
-        }
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
@@ -192,25 +220,5 @@ impl Device {
             }
         }
         self.queue.submit(Some(encoder.finish()));
-        for buffer_group in buffers.iter_mut() {
-            for buffer in buffer_group {
-                let mut output_data: Vec<u8> = vec![0; buffer.size() as usize];
-                if let Some(staging) = buffer.staging() {
-                    let slice = staging.slice(..);
-                    let (tx, rx) = flume::bounded(1);
-                    slice.map_async(wgpu::MapMode::Read, move |r| tx.send(r).unwrap());
-                    self.device.poll(wgpu::Maintain::wait()).panic_on_timeout();
-                    rx.recv_async().await.unwrap().unwrap();
-                    {
-                        let view = slice.get_mapped_range();
-                        output_data.copy_from_slice(bytemuck::cast_slice(&view));
-                    }
-                    staging.unmap();
-                }
-                if buffer.staging().is_some() {
-                    buffer.write_output_data(output_data);
-                }
-            }
-        }
     }
 }
