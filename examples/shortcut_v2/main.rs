@@ -1,6 +1,5 @@
-use encase::ShaderType;
 use rand::Rng;
-use shute::{Buffer, Instance, PowerPreference};
+use shute::{Buffer, Instance, PowerPreference, ShaderType};
 
 fn generate_data(dim: usize) -> Vec<u32> {
     let mut rng = rand::thread_rng();
@@ -28,7 +27,7 @@ struct Input {
 async fn compute(data: &Vec<u32>, dim: u32, nn: u32) -> Vec<u32> {
     let instance = Instance::new();
     let device = instance
-        .autoselect(PowerPreference::HighPerformance)
+        .autoselect(PowerPreference::HighPerformance, shute::LimitType::Highest)
         .await
         .unwrap();
 
@@ -58,7 +57,7 @@ async fn compute(data: &Vec<u32>, dim: u32, nn: u32) -> Vec<u32> {
     device.send_all_data_to_device(&groups);
     let shader = device.create_shader_module(include_str!("shortcut.wgsl"), "main".to_string());
     device
-        .execute(&groups, shader, (divup(dim, 16), divup(dim, 16), 1))
+        .execute_blocking(&groups, shader, (divup(dim, 16), divup(dim, 16), 1))
         .await;
     device.fetch_all_data_from_device(&mut groups).await;
     let output: Vec<u32> =

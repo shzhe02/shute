@@ -5,22 +5,37 @@ use encase::{internal::WriteInto, ShaderType};
 use crate::{
     buffer::{Buffer, BufferContents, BufferInit, BufferType},
     types::ShaderModule,
+    Limits,
 };
 
 pub struct Device {
     device: wgpu::Device,
     queue: wgpu::Queue,
-    limits: wgpu::Limits,
+    limits: Limits,
+}
+
+pub enum LimitType {
+    Highest,
+    Default,
+    Downlevel,
 }
 
 impl Device {
-    pub async fn from_adapter(adapter: wgpu::Adapter) -> Result<Device, wgpu::RequestDeviceError> {
+    pub async fn from_adapter(
+        adapter: wgpu::Adapter,
+        limit_type: LimitType,
+    ) -> Result<Device, wgpu::RequestDeviceError> {
+        let limits = match limit_type {
+            LimitType::Highest => adapter.limits(),
+            LimitType::Default => wgpu::Limits::default(),
+            LimitType::Downlevel => wgpu::Limits::downlevel_defaults(),
+        };
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: None,
                     required_features: wgpu::Features::empty(),
-                    required_limits: wgpu::Limits::downlevel_defaults(),
+                    required_limits: limits.clone(),
                     memory_hints: wgpu::MemoryHints::Performance,
                 },
                 None,
@@ -29,17 +44,17 @@ impl Device {
         Ok(Self {
             device,
             queue,
-            limits: adapter.limits(),
+            limits: Limits::from_wgpu_limits(limits),
         })
     }
     pub fn new(device: wgpu::Device, queue: wgpu::Queue, limits: wgpu::Limits) -> Self {
         Self {
             device,
             queue,
-            limits,
+            limits: Limits::from_wgpu_limits(limits),
         }
     }
-    pub fn limits(&self) -> &wgpu::Limits {
+    pub fn limits(&self) -> &Limits {
         &self.limits
     }
     pub fn create_shader_module(
@@ -119,7 +134,7 @@ impl Device {
             }
         }
     }
-    pub async fn execute(
+    pub async fn execute_async(
         &self,
         buffers: &Vec<Vec<&mut Buffer>>,
         shader_module: ShaderModule,
@@ -220,5 +235,15 @@ impl Device {
             }
         }
         self.queue.submit(Some(encoder.finish()));
+    }
+    pub async fn execute_blocking(
+        &self,
+        buffers: &Vec<Vec<&mut Buffer>>,
+        shader_module: ShaderModule,
+        workgroup_dimensions: (u32, u32, u32),
+    ) {
+        self.execute_async(buffers, shader_module, workgroup_dimensions)
+            .await;
+        self.device().poll(wgpu::MaintainBase::Wait);
     }
 }

@@ -1,9 +1,9 @@
 use shute::{Instance, PowerPreference};
 
-async fn test() {
+async fn compute() {
     let instance = Instance::new();
     let device = instance
-        .autoselect(PowerPreference::HighPerformance)
+        .autoselect(PowerPreference::HighPerformance, shute::LimitType::Highest)
         .await
         .unwrap();
     let shader = device.create_shader_module(include_str!("square.wgsl"), "main".to_string());
@@ -27,7 +27,7 @@ async fn test() {
     );
     let mut groups = vec![vec![&mut input_buffer, &mut output_buffer]];
     device.send_all_data_to_device(&groups);
-    device.execute(&groups, shader, (size, 1, 1)).await;
+    device.execute_blocking(&groups, shader, (size, 1, 1)).await;
     device.fetch_all_data_from_device(&mut groups).await;
     let output: Vec<u32> =
         bytemuck::cast_slice(&output_buffer.read_output_data().as_ref().unwrap()).to_vec();
@@ -35,5 +35,5 @@ async fn test() {
 }
 
 fn main() {
-    pollster::block_on(test());
+    pollster::block_on(compute());
 }

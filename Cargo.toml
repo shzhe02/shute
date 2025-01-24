@@ -10,3 +10,6 @@ flume = "0.11.1"
 pollster = "0.4.0"
 rand = "0.8.5"
 wgpu = "23.0.0"
+
+[dev-dependencies]
+criterion = "0.5.1"

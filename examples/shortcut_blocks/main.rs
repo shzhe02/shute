@@ -17,7 +17,7 @@ fn divup(a: u32, b: u32) -> u32 {
 async fn compute(data: &Vec<u32>, dim: u32) -> Vec<u32> {
     let instance = Instance::new();
     let device = instance
-        .autoselect(PowerPreference::HighPerformance)
+        .autoselect(PowerPreference::HighPerformance, shute::LimitType::Highest)
         .await
         .unwrap();
 

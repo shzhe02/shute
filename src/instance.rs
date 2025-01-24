@@ -1,5 +1,5 @@
 use crate::{
-    device::Device,
+    device::{Device, LimitType},
     types::{Adapter, PowerPreference},
 };
 
@@ -31,6 +31,7 @@ impl Instance {
     pub async fn autoselect(
         &self,
         power_preference: PowerPreference,
+        limit_type: LimitType,
     ) -> Result<Device, wgpu::RequestDeviceError> {
         let adapter = self
             .instance
@@ -41,6 +42,6 @@ impl Instance {
             })
             .await
             .unwrap();
-        Device::from_adapter(adapter).await
+        Device::from_adapter(adapter, limit_type).await
     }
 }

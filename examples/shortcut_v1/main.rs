@@ -16,13 +16,13 @@ fn divup(a: u32, b: u32) -> u32 {
 }
 
 async fn compute(data: &Vec<u32>, dim: u32) -> Vec<u32> {
+    let now = Instant::now();
     let instance = Instance::new();
     let device = instance
-        .autoselect(PowerPreference::HighPerformance)
+        .autoselect(PowerPreference::HighPerformance, shute::LimitType::Highest)
         .await
         .unwrap();
     dbg!(device.limits());
-
     let mut input_buffer = device.create_buffer(
         Some("input"),
         shute::BufferType::StorageBuffer {
@@ -46,17 +46,31 @@ async fn compute(data: &Vec<u32>, dim: u32) -> Vec<u32> {
     );
     let mut groups: Vec<Vec<&mut Buffer>> =
         vec![vec![&mut input_buffer, &mut output_buffer, &mut dim_buffer]];
+    let elapsed = now.elapsed();
+    println!("[GPU] Buffer setup completed in {:.2?}", elapsed);
+    let now = Instant::now();
     device.send_all_data_to_device(&groups);
+    let elapsed = now.elapsed();
+    println!("[GPU] Data transferred to GPU in {:.2?}", elapsed);
+    let now = Instant::now();
     let shader = device.create_shader_module(include_str!("shortcut.wgsl"), "main".to_string());
+    let elapsed = now.elapsed();
+    println!("[GPU] Shader module compiled in {:.2?}", elapsed);
     let now = Instant::now();
     device
-        .execute(&groups, shader, (divup(dim, 16), divup(dim, 16), 1))
+        .execute_blocking(&groups, shader, (divup(dim, 16), divup(dim, 16), 1))
         .await;
     let elapsed = now.elapsed();
-    println!("compute completed in: {:.2?}", elapsed);
+    println!("[GPU] Compute completed in: {:.2?}", elapsed);
+    let now = Instant::now();
     device.fetch_all_data_from_device(&mut groups).await;
+    let elapsed = now.elapsed();
+    println!("[GPU] Data transferred back from GPU in {:.2?}", elapsed);
+    let now = Instant::now();
     let output: Vec<u32> =
         bytemuck::cast_slice(&output_buffer.read_output_data().as_ref().unwrap()).to_vec();
+    let elapsed = now.elapsed();
+    println!("[GPU] Casted data back into Vec<u32> in {:.2?}", elapsed);
     output
 }
 // V1 cpu compute
@@ -84,28 +98,24 @@ fn cpu_compute(data: &Vec<u32>, dim: u32) -> Vec<u32> {
 
 fn main() {
     let test_for_correctness = false;
-    let dim = 1000u32;
+    let dim = 10000u32;
     let data = generate_data(dim as usize);
     let now = Instant::now();
     let gpu_result = pollster::block_on(compute(&data, dim));
     let gpu_elapsed = now.elapsed();
-    if !test_for_correctness {
-        println!("GPU took: {:.2?}", gpu_elapsed);
-    } else {
+    println!("GPU took: {:.2?}", gpu_elapsed);
+    if test_for_correctness {
         let now = Instant::now();
         let cpu_result = cpu_compute(&data, dim);
         let cpu_elapsed = now.elapsed();
-        println!(
-            "GPU took: {:.2?}, CPU took: {:.2?}",
-            gpu_elapsed, cpu_elapsed
-        );
+        println!("CPU took: {:.2?}", cpu_elapsed);
         println!("Verifying correctness...");
         if cpu_result
             .iter()
             .zip(gpu_result.iter())
             .all(|(a, b)| a == b)
         {
-            println!("Results are correct.");
+            println!("Results match.");
         } else {
             println!("Results are inconsistent.");
         }
