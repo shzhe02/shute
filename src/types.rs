@@ -21,21 +21,21 @@ impl ShaderModule {
 
 #[derive(Debug)]
 pub struct Limits {
-    max_bind_groups: u32,
-    max_bindings_per_bind_group: u32,
-    max_dynamic_uniform_buffers_per_pipeline_layout: u32,
-    max_dynamic_storage_buffers_per_pipeline_layout: u32,
-    max_uniform_buffer_binding_size: u32,
-    max_storage_buffer_binding_size: u32,
-    max_buffer_size: u64,
-    max_compute_workgroup_storage_size: u32,
-    max_compute_invocations_per_workgroup: u32,
-    max_compute_workgroup_size_x: u32,
-    max_compute_workgroup_size_y: u32,
-    max_compute_workgroup_size_z: u32,
-    max_compute_workgroups_per_dimension: u32,
-    min_subgroup_size: u32,
-    max_subgroup_size: u32,
+    pub max_bind_groups: u32,
+    pub max_bindings_per_bind_group: u32,
+    pub max_dynamic_uniform_buffers_per_pipeline_layout: u32,
+    pub max_dynamic_storage_buffers_per_pipeline_layout: u32,
+    pub max_uniform_buffer_binding_size: u32,
+    pub max_storage_buffer_binding_size: u32,
+    pub max_buffer_size: u64,
+    pub max_compute_workgroup_storage_size: u32,
+    pub max_compute_invocations_per_workgroup: u32,
+    pub max_compute_workgroup_size_x: u32,
+    pub max_compute_workgroup_size_y: u32,
+    pub max_compute_workgroup_size_z: u32,
+    pub max_compute_workgroups_per_dimension: u32,
+    pub min_subgroup_size: u32,
+    pub max_subgroup_size: u32,
 }
 
 impl Limits {

@@ -5,17 +5,13 @@ use std::time::Instant;
 fn generate_data(dim: usize) -> Vec<u32> {
     let mut rng = rand::thread_rng();
     let mut data: Vec<u32> = (0..dim * dim).map(|_| rng.gen_range(0..100)).collect();
-    for i in 0..dim as usize {
+    for i in 0..dim {
         data[dim * i + i] = 0;
     }
     data
 }
 
-fn divup(a: u32, b: u32) -> u32 {
-    (a + b - 1) / b
-}
-
-async fn compute(data: &Vec<u32>, dim: u32) -> Vec<u32> {
+async fn compute(data: &[u32], dim: u32) -> Vec<u32> {
     let now = Instant::now();
     let instance = Instance::new();
     let device = instance
@@ -58,7 +54,7 @@ async fn compute(data: &Vec<u32>, dim: u32) -> Vec<u32> {
     println!("[GPU] Shader module compiled in {:.2?}", elapsed);
     let now = Instant::now();
     device
-        .execute_blocking(&groups, shader, (divup(dim, 16), divup(dim, 16), 1))
+        .execute_blocking(&groups, shader, (dim.div_ceil(16), dim.div_ceil(16), 1))
         .await;
     let elapsed = now.elapsed();
     println!("[GPU] Compute completed in: {:.2?}", elapsed);
@@ -68,13 +64,13 @@ async fn compute(data: &Vec<u32>, dim: u32) -> Vec<u32> {
     println!("[GPU] Data transferred back from GPU in {:.2?}", elapsed);
     let now = Instant::now();
     let output: Vec<u32> =
-        bytemuck::cast_slice(&output_buffer.read_output_data().as_ref().unwrap()).to_vec();
+        bytemuck::cast_slice(output_buffer.read_output_data().as_ref().unwrap()).to_vec();
     let elapsed = now.elapsed();
     println!("[GPU] Casted data back into Vec<u32> in {:.2?}", elapsed);
     output
 }
 // V1 cpu compute
-fn cpu_compute(data: &Vec<u32>, dim: u32) -> Vec<u32> {
+fn cpu_compute(data: &[u32], dim: u32) -> Vec<u32> {
     let dim = dim as usize;
     let mut transposed = vec![0; data.len()];
     for i in 0..dim {
@@ -98,7 +94,7 @@ fn cpu_compute(data: &Vec<u32>, dim: u32) -> Vec<u32> {
 
 fn main() {
     let test_for_correctness = false;
-    let dim = 10000u32;
+    let dim = 6300u32;
     let data = generate_data(dim as usize);
     let now = Instant::now();
     let gpu_result = pollster::block_on(compute(&data, dim));

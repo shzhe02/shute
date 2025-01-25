@@ -45,3 +45,9 @@ impl Instance {
         Device::from_adapter(adapter, limit_type).await
     }
 }
+
+impl Default for Instance {
+    fn default() -> Self {
+        Self::new()
+    }
+}

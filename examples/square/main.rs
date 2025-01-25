@@ -30,7 +30,7 @@ async fn compute() {
     device.execute_blocking(&groups, shader, (size, 1, 1)).await;
     device.fetch_all_data_from_device(&mut groups).await;
     let output: Vec<u32> =
-        bytemuck::cast_slice(&output_buffer.read_output_data().as_ref().unwrap()).to_vec();
+        bytemuck::cast_slice(output_buffer.read_output_data().as_ref().unwrap()).to_vec();
     dbg!(output);
 }
 

@@ -106,7 +106,7 @@ impl Device {
         for buffer_group in buffers.iter() {
             for buffer in buffer_group {
                 if let Some(data) = &buffer.data() {
-                    self.queue.write_buffer(&buffer.buffer(), 0, &data[..]);
+                    self.queue.write_buffer(buffer.buffer(), 0, &data[..]);
                 }
             }
         }
@@ -198,8 +198,8 @@ impl Device {
             .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
                 label: None,
                 layout: Some(&pipeline_layout),
-                module: &shader_module.module(),
-                entry_point: Some(&shader_module.entry_point()),
+                module: shader_module.module(),
+                entry_point: Some(shader_module.entry_point()),
                 compilation_options: Default::default(),
                 cache: None,
             });
@@ -227,7 +227,7 @@ impl Device {
                     encoder.copy_buffer_to_buffer(
                         buffer.buffer(),
                         0,
-                        &staging,
+                        staging,
                         0,
                         buffer.size() as u64,
                     );
