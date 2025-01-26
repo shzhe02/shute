@@ -1,30 +1,52 @@
 use rand::Rng;
-use shute::{Buffer, Instance, PowerPreference};
-use std::time::Instant;
+use shute::{Buffer, BufferInit, BufferType, Instance, PowerPreference, ShaderType};
 
 fn generate_data(dim: usize) -> Vec<u32> {
     let mut rng = rand::thread_rng();
     let mut data: Vec<u32> = (0..dim * dim).map(|_| rng.gen_range(0..100)).collect();
-    for i in 0..dim {
+    for i in 0..dim as usize {
         data[dim * i + i] = 0;
     }
     data
 }
 
-async fn compute(data: &mut Vec<u32>, dim: u32) {
-    let now = Instant::now();
+fn divup(a: u32, b: u32) -> u32 {
+    (a + b - 1) / b
+}
+
+fn roundup(a: u32, b: u32) -> u32 {
+    divup(a, b) * b
+}
+
+#[derive(ShaderType)]
+struct Input {
+    dim: u32,
+    nn: u32,
+}
+
+fn compute(data: &mut Vec<u32>, dim: u32) {
+    let nn = roundup(dim, 64);
     let instance = Instance::new();
-    let device = instance
-        .autoselect(PowerPreference::HighPerformance, shute::LimitType::Highest)
-        .await
-        .unwrap();
+    let device = pollster::block_on(
+        instance.autoselect(PowerPreference::HighPerformance, shute::LimitType::Highest),
+    )
+    .unwrap();
+
     let mut input_buffer = device.create_buffer(
         Some("input"),
         shute::BufferType::StorageBuffer {
             output: true,
-            read_only: true,
+            read_only: false,
         },
-        shute::BufferInit::WithData(data.clone()),
+        shute::BufferInit::WithSize::<u32>(nn * nn),
+    );
+    let mut input_buffer_t = device.create_buffer(
+        Some("input_t"),
+        BufferType::StorageBuffer {
+            output: true,
+            read_only: false,
+        },
+        BufferInit::WithSize::<u32>(nn * nn),
     );
     let mut output_buffer = device.create_buffer(
         Some("output"),
@@ -32,37 +54,27 @@ async fn compute(data: &mut Vec<u32>, dim: u32) {
             output: true,
             read_only: false,
         },
-        shute::BufferInit::<f32>::WithSize(input_buffer.size()),
+        shute::BufferInit::WithData(data.to_owned()),
     );
-    let mut dim_buffer = device.create_buffer(
-        Some("dim"),
+    let mut param_buffer = device.create_buffer(
+        Some("params"),
         shute::BufferType::UniformBuffer,
-        shute::BufferInit::WithData(dim),
+        shute::BufferInit::WithData(Input { dim, nn }),
     );
-    let groups: Vec<Vec<&mut Buffer>> =
-        vec![vec![&mut input_buffer, &mut output_buffer, &mut dim_buffer]];
-    let elapsed = now.elapsed();
-    println!("[GPU] Buffer setup completed in {:.2?}", elapsed);
-    let now = Instant::now();
+    let groups: Vec<Vec<&mut Buffer>> = vec![vec![
+        &mut input_buffer,
+        &mut input_buffer_t,
+        &mut output_buffer,
+        &mut param_buffer,
+    ]];
     device.send_all_data_to_device(&groups);
-    let elapsed = now.elapsed();
-    println!("[GPU] Data transferred to GPU in {:.2?}", elapsed);
-    let now = Instant::now();
+    let padding_shader =
+        device.create_shader_module(include_str!("padding.wgsl"), "main".to_string());
+    pollster::block_on(device.execute_blocking(&groups, padding_shader, (1, nn, 1)));
     let shader = device.create_shader_module(include_str!("shortcut.wgsl"), "main".to_string());
-    let elapsed = now.elapsed();
-    println!("[GPU] Shader module compiled in {:.2?}", elapsed);
-    let now = Instant::now();
-    device
-        .execute_blocking(&groups, shader, (dim.div_ceil(16), dim.div_ceil(16), 1))
-        .await;
-    let elapsed = now.elapsed();
-    println!("[GPU] Compute completed in: {:.2?}", elapsed);
-    let now = Instant::now();
-    output_buffer.fetch_data_from_device(&device, data).await;
-    let elapsed = now.elapsed();
-    println!("[GPU] Data transferred back from GPU in {:.2?}", elapsed);
+    pollster::block_on(device.execute_blocking(&groups, shader, (nn / 64, nn / 64, 1)));
+    pollster::block_on(output_buffer.fetch_data_from_device(&device, data));
 }
-// V1 cpu compute
 fn cpu_compute(data: &[u32], dim: u32) -> Vec<u32> {
     let dim = dim as usize;
     let mut transposed = vec![0; data.len()];
@@ -86,12 +98,13 @@ fn cpu_compute(data: &[u32], dim: u32) -> Vec<u32> {
 }
 
 fn main() {
+    use std::time::Instant;
     let test_for_correctness = false;
     let dim = 6300u32;
     let initial_data = generate_data(dim as usize);
     let mut data = initial_data.clone();
     let now = Instant::now();
-    pollster::block_on(compute(&mut data, dim));
+    compute(&mut data, dim);
     let gpu_elapsed = now.elapsed();
     println!("GPU took: {:.2?}", gpu_elapsed);
     if test_for_correctness {
@@ -104,6 +117,19 @@ fn main() {
             println!("Results match.");
         } else {
             println!("Results are inconsistent.");
+            println!("Initial Data:");
+            for line in initial_data.chunks(dim as usize) {
+                println!("{:?}", line);
+            }
+            println!("========================================");
+            println!("CPU result:");
+            for line in cpu_result.chunks(dim as usize) {
+                println!("{:?}", line);
+            }
+            println!("GPU result:");
+            for line in data.chunks(dim as usize) {
+                println!("{:?}", line);
+            }
         }
     }
 }
