@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use encase::{internal::WriteInto, ShaderType};
+use wgpu::Maintain;
 
 use crate::{
     buffer::{Buffer, BufferContents, BufferInit, BufferType},
@@ -245,5 +246,8 @@ impl Device {
         self.execute_async(buffers, shader_module, workgroup_dimensions)
             .await;
         self.device().poll(wgpu::MaintainBase::Wait);
+    }
+    pub fn block_until_complete(&self) {
+        self.device.poll(Maintain::Wait);
     }
 }
