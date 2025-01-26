@@ -21,10 +21,8 @@ fn initialize_gpu_buffer(device: &Device, data: &Vec<u32>) {
     device.block_until_complete();
 }
 
-fn pull_data_from_buffer(device: &Device, buffer: &mut Buffer) {
-    pollster::block_on(buffer.fetch_data_from_device(device));
-    let _output: Vec<u32> =
-        bytemuck::cast_slice(buffer.read_output_data().as_ref().unwrap()).to_vec();
+fn pull_data_from_buffer(device: &Device, buffer: &mut Buffer, output: &mut Vec<u32>) {
+    pollster::block_on(buffer.fetch_data_from_device(device, output));
 }
 
 fn benchmark_io(c: &mut Criterion) {
@@ -54,8 +52,9 @@ fn benchmark_io(c: &mut Criterion) {
             },
             BufferInit::WithSize::<Vec<u32>>(i),
         );
+        let mut output = vec![0; i as usize];
         group.bench_function(BenchmarkId::new("Pulling", i), |b| {
-            b.iter(|| pull_data_from_buffer(&device, &mut buffer))
+            b.iter(|| pull_data_from_buffer(&device, &mut buffer, &mut output))
         });
     }
 }

@@ -11,21 +11,20 @@ fn generate_data(dim: usize) -> Vec<u32> {
     data
 }
 
-async fn compute(data: &[u32], dim: u32) -> Vec<u32> {
+async fn compute(data: &mut Vec<u32>, dim: u32) {
     let now = Instant::now();
     let instance = Instance::new();
     let device = instance
         .autoselect(PowerPreference::HighPerformance, shute::LimitType::Highest)
         .await
         .unwrap();
-    dbg!(device.limits());
     let mut input_buffer = device.create_buffer(
         Some("input"),
         shute::BufferType::StorageBuffer {
             output: true,
             read_only: true,
         },
-        shute::BufferInit::WithData(data),
+        shute::BufferInit::WithData(data.clone()),
     );
     let mut output_buffer = device.create_buffer(
         Some("output"),
@@ -40,7 +39,7 @@ async fn compute(data: &[u32], dim: u32) -> Vec<u32> {
         shute::BufferType::UniformBuffer,
         shute::BufferInit::WithData(dim),
     );
-    let mut groups: Vec<Vec<&mut Buffer>> =
+    let groups: Vec<Vec<&mut Buffer>> =
         vec![vec![&mut input_buffer, &mut output_buffer, &mut dim_buffer]];
     let elapsed = now.elapsed();
     println!("[GPU] Buffer setup completed in {:.2?}", elapsed);
@@ -59,15 +58,9 @@ async fn compute(data: &[u32], dim: u32) -> Vec<u32> {
     let elapsed = now.elapsed();
     println!("[GPU] Compute completed in: {:.2?}", elapsed);
     let now = Instant::now();
-    device.fetch_all_data_from_device(&mut groups).await;
+    output_buffer.fetch_data_from_device(&device, data).await;
     let elapsed = now.elapsed();
     println!("[GPU] Data transferred back from GPU in {:.2?}", elapsed);
-    let now = Instant::now();
-    let output: Vec<u32> =
-        bytemuck::cast_slice(output_buffer.read_output_data().as_ref().unwrap()).to_vec();
-    let elapsed = now.elapsed();
-    println!("[GPU] Casted data back into Vec<u32> in {:.2?}", elapsed);
-    output
 }
 // V1 cpu compute
 fn cpu_compute(data: &[u32], dim: u32) -> Vec<u32> {
@@ -94,23 +87,20 @@ fn cpu_compute(data: &[u32], dim: u32) -> Vec<u32> {
 
 fn main() {
     let test_for_correctness = false;
-    let dim = 6300u32;
-    let data = generate_data(dim as usize);
+    let dim = 4000u32;
+    let initial_data = generate_data(dim as usize);
+    let mut data = initial_data.clone();
     let now = Instant::now();
-    let gpu_result = pollster::block_on(compute(&data, dim));
+    pollster::block_on(compute(&mut data, dim));
     let gpu_elapsed = now.elapsed();
     println!("GPU took: {:.2?}", gpu_elapsed);
     if test_for_correctness {
         let now = Instant::now();
-        let cpu_result = cpu_compute(&data, dim);
+        let cpu_result = cpu_compute(&initial_data, dim);
         let cpu_elapsed = now.elapsed();
         println!("CPU took: {:.2?}", cpu_elapsed);
         println!("Verifying correctness...");
-        if cpu_result
-            .iter()
-            .zip(gpu_result.iter())
-            .all(|(a, b)| a == b)
-        {
+        if cpu_result.iter().zip(data.iter()).all(|(a, b)| a == b) {
             println!("Results match.");
         } else {
             println!("Results are inconsistent.");

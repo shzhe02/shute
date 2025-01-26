@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use encase::{internal::WriteInto, ShaderType};
+use encase::{internal::WriteInto, ShaderType, StorageBuffer, UniformBuffer};
 use wgpu::Maintain;
 
 use crate::{
@@ -84,12 +84,12 @@ impl Device {
             BufferInit::WithSize(size) => BufferContents::Size(size),
             BufferInit::WithData(data) => match buffer_type {
                 BufferType::StorageBuffer { .. } => {
-                    let mut buffer = encase::StorageBuffer::new(vec![]);
+                    let mut buffer = StorageBuffer::new(vec![]);
                     buffer.write(&data).unwrap();
                     BufferContents::Data(buffer.into_inner())
                 }
                 BufferType::UniformBuffer => {
-                    let mut buffer = encase::UniformBuffer::new(vec![]);
+                    let mut buffer = UniformBuffer::new(vec![]);
                     buffer.write(&data).unwrap();
                     BufferContents::Data(buffer.into_inner())
                 }
@@ -112,28 +112,6 @@ impl Device {
             }
         }
         self.queue.submit([]);
-    }
-    pub async fn fetch_all_data_from_device(&self, buffers: &mut Vec<Vec<&mut Buffer>>) {
-        for buffer_group in buffers.iter_mut() {
-            for buffer in buffer_group {
-                let mut output_data: Vec<u8> = vec![0; buffer.size() as usize];
-                if let Some(staging) = buffer.staging() {
-                    let slice = staging.slice(..);
-                    let (tx, rx) = flume::bounded(1);
-                    slice.map_async(wgpu::MapMode::Read, move |r| tx.send(r).unwrap());
-                    self.device.poll(wgpu::Maintain::wait()).panic_on_timeout();
-                    rx.recv_async().await.unwrap().unwrap();
-                    {
-                        let view = slice.get_mapped_range();
-                        output_data.copy_from_slice(bytemuck::cast_slice(&view));
-                    }
-                    staging.unmap();
-                }
-                if buffer.staging().is_some() {
-                    buffer.write_output_data(output_data);
-                }
-            }
-        }
     }
     pub async fn execute_async(
         &self,

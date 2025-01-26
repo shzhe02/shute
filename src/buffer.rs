@@ -1,4 +1,7 @@
-use encase::{internal::WriteInto, ShaderType};
+use encase::{
+    internal::{ReadFrom, WriteInto},
+    ShaderType, StorageBuffer,
+};
 use wgpu::BindingResource;
 
 use crate::Device;
@@ -12,7 +15,6 @@ pub enum BufferType {
 pub struct Buffer {
     buffer_type: BufferType,
     contents: BufferContents,
-    output_data: Option<Vec<u8>>,
     buffer: wgpu::Buffer,
     staging: Option<wgpu::Buffer>,
 }
@@ -53,7 +55,6 @@ impl Buffer {
         Self {
             buffer_type,
             contents,
-            output_data: None,
             buffer: device.device().create_buffer(&wgpu::BufferDescriptor {
                 label,
                 size,
@@ -77,12 +78,6 @@ impl Buffer {
                 None
             },
         }
-    }
-    pub fn write_output_data(&mut self, data: Vec<u8>) {
-        self.output_data = Some(data);
-    }
-    pub fn read_output_data(&self) -> &Option<Vec<u8>> {
-        &self.output_data
     }
     pub fn size(&self) -> u32 {
         self.contents.size()
@@ -111,8 +106,10 @@ impl Buffer {
             device.queue().submit([]);
         }
     }
-    pub async fn fetch_data_from_device(&mut self, device: &Device) {
-        let mut output_data: Vec<u8> = vec![0; self.size() as usize];
+    pub async fn fetch_data_from_device<T>(&mut self, device: &Device, output: &mut T)
+    where
+        T: ShaderType + ReadFrom,
+    {
         if let Some(staging) = self.staging() {
             let slice = staging.slice(..);
             let (tx, rx) = flume::bounded(1);
@@ -124,12 +121,10 @@ impl Buffer {
             rx.recv_async().await.unwrap().unwrap();
             {
                 let view = slice.get_mapped_range();
-                output_data.copy_from_slice(bytemuck::cast_slice(&view));
+                let buffer = StorageBuffer::new(&*view);
+                buffer.read(output).unwrap();
             }
             staging.unmap();
-        }
-        if self.staging().is_some() {
-            self.write_output_data(output_data);
         }
     }
 }
