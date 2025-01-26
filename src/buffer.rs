@@ -101,15 +101,17 @@ impl Buffer {
         &self.staging
     }
     pub fn send_data_to_device(&self, device: &Device) {
+        // TODO: Remove the BufferContents entirely as it's very unintuitive.
         if let BufferContents::Data(data) = &self.contents {
             device.queue().write_buffer(&self.buffer, 0, &data[..]);
             device.queue().submit([]);
         }
     }
-    pub async fn fetch_data_from_device<T>(&mut self, device: &Device, output: &mut T)
+    pub async fn fetch_data_from_device<T>(&self, device: &Device, output: &mut T)
     where
         T: ShaderType + ReadFrom,
     {
+        // TODO: Return an error if the output is not large enough to hold the buffer's data.
         if let Some(staging) = self.staging() {
             let slice = staging.slice(..);
             let (tx, rx) = flume::bounded(1);
