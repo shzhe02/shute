@@ -2,6 +2,12 @@
 name = "shute"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+description = "Abstraction of wgpu for simple compute shader execution"
+repository = "https://github.com/shzhe02/shute"
+readme = "README.md"
+keywords = ["gpgpu", "compute"]
+categories = []
 
 [dependencies]
 encase = "0.10.0"
