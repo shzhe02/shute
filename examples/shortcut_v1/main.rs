@@ -48,7 +48,7 @@ async fn compute(data: &mut Vec<u32>, dim: u32) {
     let elapsed = now.elapsed();
     println!("[GPU] Buffer setup completed in {:.2?}", elapsed);
     let now = Instant::now();
-    let shader = device.create_shader_module(include_str!("shortcut.wgsl"), "main".to_string());
+    let shader = device.create_shader_module(include_str!("shortcut.wgsl"), "main");
     let elapsed = now.elapsed();
     println!("[GPU] Shader module compiled in {:.2?}", elapsed);
     let now = Instant::now();

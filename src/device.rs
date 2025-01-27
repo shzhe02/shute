@@ -69,7 +69,7 @@ impl Device {
     pub fn info(&self) -> wgpu::AdapterInfo {
         self.adapter.get_info()
     }
-    pub fn create_shader_module(&self, shader: &str, entry_point: String) -> ShaderModule {
+    pub fn create_shader_module(&self, shader: &str, entry_point: &str) -> ShaderModule {
         ShaderModule::new(
             self.device
                 .create_shader_module(wgpu::ShaderModuleDescriptor {

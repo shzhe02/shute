@@ -63,10 +63,9 @@ fn compute(data: &mut Vec<u32>, dim: u32) {
         &mut output_buffer,
         &mut param_buffer,
     ]];
-    let padding_shader =
-        device.create_shader_module(include_str!("padding.wgsl"), "main".to_string());
+    let padding_shader = device.create_shader_module(include_str!("padding.wgsl"), "main");
     pollster::block_on(device.execute_blocking(&groups, padding_shader, (1, nn, 1)));
-    let shader = device.create_shader_module(include_str!("shortcut.wgsl"), "main".to_string());
+    let shader = device.create_shader_module(include_str!("shortcut.wgsl"), "main");
     pollster::block_on(device.execute_blocking(&groups, shader, (nn / 64, nn / 64, 1)));
     pollster::block_on(output_buffer.fetch_data_from_device(data));
 }

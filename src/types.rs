@@ -5,10 +5,10 @@ pub struct ShaderModule {
     entry_point: String,
 }
 impl ShaderModule {
-    pub fn new(module: wgpu::ShaderModule, entry_point: String) -> Self {
+    pub fn new(module: wgpu::ShaderModule, entry_point: &str) -> Self {
         Self {
             module,
-            entry_point,
+            entry_point: entry_point.to_string(),
         }
     }
     pub fn module(&self) -> &wgpu::ShaderModule {
