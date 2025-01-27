@@ -10,6 +10,7 @@ use crate::{
 };
 
 pub struct Device {
+    adapter: wgpu::Adapter,
     device: wgpu::Device,
     queue: wgpu::Queue,
     limits: Limits,
@@ -43,13 +44,20 @@ impl Device {
             )
             .await?;
         Ok(Self {
+            adapter,
             device,
             queue,
             limits: Limits::from_wgpu_limits(limits),
         })
     }
-    pub fn new(device: wgpu::Device, queue: wgpu::Queue, limits: wgpu::Limits) -> Self {
+    pub fn new(
+        device: wgpu::Device,
+        queue: wgpu::Queue,
+        limits: wgpu::Limits,
+        adapter: wgpu::Adapter,
+    ) -> Self {
         Self {
+            adapter,
             device,
             queue,
             limits: Limits::from_wgpu_limits(limits),
@@ -57,6 +65,9 @@ impl Device {
     }
     pub fn limits(&self) -> &Limits {
         &self.limits
+    }
+    pub fn info(&self) -> wgpu::AdapterInfo {
+        self.adapter.get_info()
     }
     pub fn create_shader_module(
         &self,
