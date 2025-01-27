@@ -69,18 +69,12 @@ impl Device {
     pub fn info(&self) -> wgpu::AdapterInfo {
         self.adapter.get_info()
     }
-    pub fn create_shader_module(
-        &self,
-        path: impl AsRef<Path>,
-        entry_point: String,
-    ) -> ShaderModule {
-        let mut path_buf = PathBuf::new();
-        path_buf.push(path);
+    pub fn create_shader_module(&self, shader: &str, entry_point: String) -> ShaderModule {
         ShaderModule::new(
             self.device
                 .create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: Some(&path_buf.display().to_string()),
-                    source: wgpu::ShaderSource::Wgsl(path_buf.to_string_lossy()),
+                    label: None,
+                    source: wgpu::ShaderSource::Wgsl(shader.into()),
                 }),
             entry_point,
         )
