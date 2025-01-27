@@ -11,7 +11,7 @@ fn generate_data(size: usize) -> Vec<u32> {
 }
 
 fn initialize_gpu_buffer(device: &Device, data: &Vec<u32>) {
-    let buffer = device.create_buffer(
+    device.create_buffer(
         Some("test_send"),
         BufferType::StorageBuffer {
             output: false,
@@ -19,7 +19,8 @@ fn initialize_gpu_buffer(device: &Device, data: &Vec<u32>) {
         },
         BufferInit::WithData(data),
     );
-    buffer.send_data_to_device(device);
+    device.queue().submit([]);
+    // buffer.send_data_to_device(device);
     device.block_until_complete();
 }
 

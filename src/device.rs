@@ -103,16 +103,6 @@ impl Device {
     pub fn queue(&self) -> &wgpu::Queue {
         &self.queue
     }
-    pub fn send_all_data_to_device(&self, buffers: &Vec<Vec<&mut Buffer>>) {
-        for buffer_group in buffers.iter() {
-            for buffer in buffer_group {
-                if let Some(data) = &buffer.data() {
-                    self.queue.write_buffer(buffer.buffer(), 0, &data[..]);
-                }
-            }
-        }
-        self.queue.submit([]);
-    }
     pub async fn execute_async(
         &self,
         buffers: &Vec<Vec<&mut Buffer>>,

@@ -1,8 +1,11 @@
 use encase::{
     internal::{ReadFrom, WriteInto},
-    ShaderType, StorageBuffer,
+    ShaderType, StorageBuffer, UniformBuffer,
 };
-use wgpu::BindingResource;
+use wgpu::{
+    util::{BufferInitDescriptor, DeviceExt},
+    BindingResource, BufferDescriptor,
+};
 
 use crate::Device;
 
@@ -52,21 +55,34 @@ impl Buffer {
             BufferContents::Size(size) => *size as u64,
             BufferContents::Data(data) => data.len() as u64,
         };
+        let usage = {
+            let buffer_type = match buffer_type {
+                BufferType::StorageBuffer { .. } => wgpu::BufferUsages::STORAGE,
+                BufferType::UniformBuffer => wgpu::BufferUsages::UNIFORM,
+            };
+            buffer_type | wgpu::BufferUsages::COPY_SRC | wgpu::BufferUsages::COPY_DST
+        };
+        let buffer = match &contents {
+            BufferContents::Size(size) => device.device().create_buffer(&BufferDescriptor {
+                label,
+                size: *size as u64,
+                usage,
+                mapped_at_creation: false,
+            }),
+            BufferContents::Data(data) => {
+                device.device().create_buffer_init(&BufferInitDescriptor {
+                    label,
+                    contents: &data[..],
+                    usage,
+                })
+            }
+        };
+        device.queue().submit([]);
+
         Self {
             buffer_type,
             contents,
-            buffer: device.device().create_buffer(&wgpu::BufferDescriptor {
-                label,
-                size,
-                usage: {
-                    let buffer_type = match buffer_type {
-                        BufferType::StorageBuffer { .. } => wgpu::BufferUsages::STORAGE,
-                        BufferType::UniformBuffer => wgpu::BufferUsages::UNIFORM,
-                    };
-                    buffer_type | wgpu::BufferUsages::COPY_SRC | wgpu::BufferUsages::COPY_DST
-                },
-                mapped_at_creation: false,
-            }),
+            buffer,
             staging: if let BufferType::StorageBuffer { output: true, .. } = buffer_type {
                 Some(device.device().create_buffer(&wgpu::BufferDescriptor {
                     label: label.map(|s| s.to_string() + "-output").as_deref(),
@@ -100,12 +116,25 @@ impl Buffer {
     pub fn staging(&self) -> &Option<wgpu::Buffer> {
         &self.staging
     }
-    pub fn send_data_to_device(&self, device: &Device) {
-        // TODO: Remove the BufferContents entirely as it's very unintuitive.
-        if let BufferContents::Data(data) = &self.contents {
-            device.queue().write_buffer(&self.buffer, 0, &data[..]);
-            device.queue().submit([]);
-        }
+    pub fn send_data_to_device<T>(&self, device: &Device, data: &T)
+    where
+        T: ShaderType + WriteInto,
+    {
+        let data: Vec<u8> = match self.buffer_type {
+            BufferType::StorageBuffer { .. } => {
+                let mut buffer = StorageBuffer::new(vec![]);
+                buffer.write(&data).unwrap();
+                buffer.into_inner()
+            }
+            BufferType::UniformBuffer => {
+                let mut buffer = UniformBuffer::new(vec![]);
+                buffer.write(&data).unwrap();
+                buffer.into_inner()
+            }
+        };
+        // TODO: Improve to use write_buffer_with
+        device.queue().write_buffer(&self.buffer, 0, &data);
+        device.queue().submit([]);
     }
     pub async fn fetch_data_from_device<T>(&self, device: &Device, output: &mut T)
     where

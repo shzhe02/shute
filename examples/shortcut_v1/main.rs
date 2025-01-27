@@ -44,10 +44,6 @@ async fn compute(data: &mut Vec<u32>, dim: u32) {
     let elapsed = now.elapsed();
     println!("[GPU] Buffer setup completed in {:.2?}", elapsed);
     let now = Instant::now();
-    device.send_all_data_to_device(&groups);
-    let elapsed = now.elapsed();
-    println!("[GPU] Data transferred to GPU in {:.2?}", elapsed);
-    let now = Instant::now();
     let shader = device.create_shader_module(include_str!("shortcut.wgsl"), "main".to_string());
     let elapsed = now.elapsed();
     println!("[GPU] Shader module compiled in {:.2?}", elapsed);
@@ -86,8 +82,8 @@ fn cpu_compute(data: &[u32], dim: u32) -> Vec<u32> {
 }
 
 fn main() {
-    let test_for_correctness = false;
-    let dim = 6300u32;
+    let test_for_correctness = true;
+    let dim = 1000u32;
     let initial_data = generate_data(dim as usize);
     let mut data = initial_data.clone();
     let now = Instant::now();
