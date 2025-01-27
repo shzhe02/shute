@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use criterion::{criterion_group, BenchmarkId, Criterion};
 use rand::{thread_rng, Rng};
 use shute::{Buffer, BufferInit, BufferType, Device, Instance, LimitType};
@@ -27,36 +29,39 @@ fn pull_data_from_buffer(device: &Device, buffer: &mut Buffer, output: &mut Vec<
 
 fn benchmark_io(c: &mut Criterion) {
     let mut group = c.benchmark_group("CPU-GPU IO");
-    group.sample_size(10).noise_threshold(0.15);
+    group
+        .sample_size(10)
+        .noise_threshold(0.15)
+        .measurement_time(Duration::from_secs(10));
     let instance = Instance::new();
     let device = pollster::block_on(
-        instance.autoselect(PowerPreference::HighPerformance, LimitType::Highest),
+        instance.autoselect(PowerPreference::HighPerformance, LimitType::Downlevel),
     )
     .unwrap();
 
     // Benchmarks for sending data from CPU to GPU
 
-    for i in (1..10).map(|e| e * 10000000) {
-        group.bench_with_input(BenchmarkId::new("Sending", i), &generate_data(i), |b, i| {
-            b.iter(|| initialize_gpu_buffer(&device, i))
-        });
-    }
+    let size = device.limits().max_buffer_size as usize / size_of::<u32>();
+
+    group.bench_with_input(
+        BenchmarkId::new("Buffer Initialization", size),
+        &generate_data(size),
+        |b, i| b.iter(|| initialize_gpu_buffer(&device, i)),
+    );
 
     // Benchmarks for pulling data from GPU to CPU
-    for i in (1..10).map(|e| e * 10000000) {
-        let mut buffer = device.create_buffer(
-            Some("test_pull"),
-            BufferType::StorageBuffer {
-                output: true,
-                read_only: true,
-            },
-            BufferInit::WithSize::<Vec<u32>>(i),
-        );
-        let mut output = vec![0; i as usize];
-        group.bench_function(BenchmarkId::new("Pulling", i), |b| {
-            b.iter(|| pull_data_from_buffer(&device, &mut buffer, &mut output))
-        });
-    }
+    let mut buffer = device.create_buffer(
+        Some("test_pull"),
+        BufferType::StorageBuffer {
+            output: true,
+            read_only: true,
+        },
+        BufferInit::WithSize::<u32>(size as u32),
+    );
+    let mut output = vec![0; size];
+    group.bench_function("Reading Data from GPU Buffer", |b| {
+        b.iter(|| pull_data_from_buffer(&device, &mut buffer, &mut output))
+    });
 }
 
 criterion_group!(io, benchmark_io);
