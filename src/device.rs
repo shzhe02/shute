@@ -105,7 +105,7 @@ impl Device {
     }
     pub async fn execute_async(
         &self,
-        buffers: &Vec<Vec<&mut Buffer>>,
+        buffers: &Vec<Vec<&mut Buffer<'_>>>,
         shader_module: ShaderModule,
         workgroup_dimensions: (u32, u32, u32),
     ) {
@@ -207,7 +207,7 @@ impl Device {
     }
     pub async fn execute_blocking(
         &self,
-        buffers: &Vec<Vec<&mut Buffer>>,
+        buffers: &Vec<Vec<&mut Buffer<'_>>>,
         shader_module: ShaderModule,
         workgroup_dimensions: (u32, u32, u32),
     ) {

@@ -58,7 +58,7 @@ async fn compute(data: &mut Vec<u32>, dim: u32) {
     let elapsed = now.elapsed();
     println!("[GPU] Compute completed in: {:.2?}", elapsed);
     let now = Instant::now();
-    output_buffer.fetch_data_from_device(&device, data).await;
+    output_buffer.fetch_data_from_device(data).await;
     let elapsed = now.elapsed();
     println!("[GPU] Data transferred back from GPU in {:.2?}", elapsed);
 }

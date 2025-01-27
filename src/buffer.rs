@@ -15,7 +15,8 @@ pub enum BufferType {
     UniformBuffer,
 }
 
-pub struct Buffer {
+pub struct Buffer<'a> {
+    device: &'a Device,
     buffer_type: BufferType,
     contents: BufferContents,
     buffer: wgpu::Buffer,
@@ -44,10 +45,10 @@ impl BufferContents {
     }
 }
 
-impl Buffer {
+impl<'a> Buffer<'a> {
     pub fn new(
         label: Option<&str>,
-        device: &Device,
+        device: &'a Device,
         buffer_type: BufferType,
         contents: BufferContents,
     ) -> Self {
@@ -80,6 +81,7 @@ impl Buffer {
         device.queue().submit([]);
 
         Self {
+            device,
             buffer_type,
             contents,
             buffer,
@@ -116,7 +118,7 @@ impl Buffer {
     pub fn staging(&self) -> &Option<wgpu::Buffer> {
         &self.staging
     }
-    pub fn send_data_to_device<T>(&self, device: &Device, data: &T)
+    pub fn send_data_to_device<T>(&self, data: &T)
     where
         T: ShaderType + WriteInto,
     {
@@ -133,10 +135,10 @@ impl Buffer {
             }
         };
         // TODO: Improve to use write_buffer_with
-        device.queue().write_buffer(&self.buffer, 0, &data);
-        device.queue().submit([]);
+        self.device.queue().write_buffer(&self.buffer, 0, &data);
+        self.device.queue().submit([]);
     }
-    pub async fn fetch_data_from_device<T>(&self, device: &Device, output: &mut T)
+    pub async fn fetch_data_from_device<T>(&self, output: &mut T)
     where
         T: ShaderType + ReadFrom,
     {
@@ -145,7 +147,7 @@ impl Buffer {
             let slice = staging.slice(..);
             let (tx, rx) = flume::bounded(1);
             slice.map_async(wgpu::MapMode::Read, move |r| tx.send(r).unwrap());
-            device
+            self.device
                 .device()
                 .poll(wgpu::Maintain::wait())
                 .panic_on_timeout();

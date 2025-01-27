@@ -68,7 +68,7 @@ fn compute(data: &mut Vec<u32>, dim: u32) {
     pollster::block_on(device.execute_blocking(&groups, padding_shader, (1, nn, 1)));
     let shader = device.create_shader_module(include_str!("shortcut.wgsl"), "main".to_string());
     pollster::block_on(device.execute_blocking(&groups, shader, (nn / 64, nn / 64, 1)));
-    pollster::block_on(output_buffer.fetch_data_from_device(&device, data));
+    pollster::block_on(output_buffer.fetch_data_from_device(data));
 }
 fn cpu_compute(data: &[u32], dim: u32) -> Vec<u32> {
     let dim = dim as usize;
@@ -95,7 +95,7 @@ fn cpu_compute(data: &[u32], dim: u32) -> Vec<u32> {
 fn main() {
     use std::time::Instant;
     let test_for_correctness = false;
-    let dim = 6300u32;
+    let dim = 4000u32;
     let initial_data = generate_data(dim as usize);
     let mut data = initial_data.clone();
     let now = Instant::now();
