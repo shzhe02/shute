@@ -4,18 +4,14 @@ use shute::{Buffer, BufferInit, BufferType, Instance, PowerPreference, ShaderTyp
 fn generate_data(dim: usize) -> Vec<u32> {
     let mut rng = rand::thread_rng();
     let mut data: Vec<u32> = (0..dim * dim).map(|_| rng.gen_range(0..100)).collect();
-    for i in 0..dim as usize {
+    for i in 0..dim {
         data[dim * i + i] = 0;
     }
     data
 }
 
-fn divup(a: u32, b: u32) -> u32 {
-    (a + b - 1) / b
-}
-
 fn roundup(a: u32, b: u32) -> u32 {
-    divup(a, b) * b
+    a.div_ceil(b) * b
 }
 
 #[derive(ShaderType)]
@@ -67,7 +63,6 @@ fn compute(data: &mut Vec<u32>, dim: u32) {
         &mut output_buffer,
         &mut param_buffer,
     ]];
-    device.send_all_data_to_device(&groups);
     let padding_shader =
         device.create_shader_module(include_str!("padding.wgsl"), "main".to_string());
     pollster::block_on(device.execute_blocking(&groups, padding_shader, (1, nn, 1)));
