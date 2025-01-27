@@ -1,6 +1,10 @@
 use rand::Rng;
+use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use shute::{Buffer, Instance, PowerPreference};
-use std::time::Instant;
+use std::{
+    sync::atomic::{AtomicU32, Ordering},
+    time::Instant,
+};
 
 fn generate_data(dim: usize) -> Vec<u32> {
     let mut rng = rand::thread_rng();
@@ -58,7 +62,7 @@ async fn compute(data: &mut Vec<u32>, dim: u32) {
     let elapsed = now.elapsed();
     println!("[GPU] Data transferred back from GPU in {:.2?}", elapsed);
 }
-// V1 cpu compute
+// V1 cpu compute, parallel (sort of)
 fn cpu_compute(data: &[u32], dim: u32) -> Vec<u32> {
     let dim = dim as usize;
     let mut transposed = vec![0; data.len()];
@@ -67,23 +71,26 @@ fn cpu_compute(data: &[u32], dim: u32) -> Vec<u32> {
             transposed[dim * j + i] = data[dim * i + j];
         }
     }
-    let mut output = vec![0; dim * dim];
-    for i in 0..dim {
+    let output: Vec<_> = (0..dim * dim).map(|_| AtomicU32::new(0)).collect();
+    (0..dim).into_par_iter().for_each(|i| {
         for j in 0..dim {
             let mut smallest = u32::MAX;
             for k in 0..dim {
                 let sum = data[dim * i + k] + transposed[dim * j + k];
                 smallest = std::cmp::min(sum, smallest);
             }
-            output[dim * i + j] = smallest;
+            output[dim * i + j].store(smallest, std::sync::atomic::Ordering::Relaxed);
         }
-    }
+    });
     output
+        .par_iter()
+        .map(|n| n.load(Ordering::Relaxed))
+        .collect()
 }
 
 fn main() {
     let test_for_correctness = true;
-    let dim = 1000u32;
+    let dim = 4000u32;
     let initial_data = generate_data(dim as usize);
     let mut data = initial_data.clone();
     let now = Instant::now();

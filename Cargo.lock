@@ -1014,6 +1014,7 @@ dependencies = [
  "flume",
  "pollster",
  "rand",
+ "rayon",
  "wgpu",
 ]
 
