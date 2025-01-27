@@ -1,5 +1,3 @@
-use std::path::{Path, PathBuf};
-
 use encase::{internal::WriteInto, ShaderType, StorageBuffer, UniformBuffer};
 use wgpu::Maintain;
 
