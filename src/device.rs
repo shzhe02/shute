@@ -208,14 +208,13 @@ impl Device {
         }
         self.queue.submit(Some(encoder.finish()));
     }
-    pub async fn execute_blocking(
+    pub fn execute_blocking(
         &self,
         buffers: &Vec<Vec<&mut Buffer<'_>>>,
         shader_module: ShaderModule,
         workgroup_dimensions: (u32, u32, u32),
     ) {
-        self.execute_async(buffers, shader_module, workgroup_dimensions)
-            .await;
+        pollster::block_on(self.execute_async(buffers, shader_module, workgroup_dimensions));
         self.device().poll(wgpu::MaintainBase::Wait);
     }
     pub fn block_until_complete(&self) {

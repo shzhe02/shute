@@ -1,5 +1,5 @@
 use rand::Rng;
-use shute::{Buffer, BufferInit, BufferType, Instance, PowerPreference, ShaderType};
+use shute::{Buffer, Instance, PowerPreference};
 
 fn generate_data(dim: usize) -> Vec<u32> {
     let mut rng = rand::thread_rng();
@@ -10,39 +10,19 @@ fn generate_data(dim: usize) -> Vec<u32> {
     data
 }
 
-fn roundup(a: u32, b: u32) -> u32 {
-    a.div_ceil(b) * b
-}
-
-#[derive(ShaderType)]
-struct Input {
-    dim: u32,
-    nn: u32,
-}
-
 fn compute(data: &mut Vec<u32>, dim: u32) {
-    let nn = roundup(dim, 64);
     let instance = Instance::new();
     let device = pollster::block_on(
         instance.autoselect(PowerPreference::HighPerformance, shute::LimitType::Highest),
     )
     .unwrap();
-
     let mut input_buffer = device.create_buffer(
         Some("input"),
         shute::BufferType::StorageBuffer {
             output: true,
-            read_only: false,
+            read_only: true,
         },
-        shute::BufferInit::WithSize::<u32>(nn * nn),
-    );
-    let mut input_buffer_t = device.create_buffer(
-        Some("input_t"),
-        BufferType::StorageBuffer {
-            output: true,
-            read_only: false,
-        },
-        BufferInit::WithSize::<u32>(nn * nn),
+        shute::BufferInit::WithData(&data),
     );
     let mut output_buffer = device.create_buffer(
         Some("output"),
@@ -50,23 +30,17 @@ fn compute(data: &mut Vec<u32>, dim: u32) {
             output: true,
             read_only: false,
         },
-        shute::BufferInit::WithData(data.to_owned()),
+        shute::BufferInit::<f32>::WithSize(input_buffer.size()),
     );
-    let mut param_buffer = device.create_buffer(
-        Some("params"),
+    let mut dim_buffer = device.create_buffer(
+        Some("dim"),
         shute::BufferType::UniformBuffer,
-        shute::BufferInit::WithData(Input { dim, nn }),
+        shute::BufferInit::WithData(dim),
     );
-    let groups: Vec<Vec<&mut Buffer>> = vec![vec![
-        &mut input_buffer,
-        &mut input_buffer_t,
-        &mut output_buffer,
-        &mut param_buffer,
-    ]];
-    let padding_shader = device.create_shader_module(include_str!("padding.wgsl"), "main");
-    device.execute_blocking(&groups, padding_shader, (1, nn, 1));
+    let groups: Vec<Vec<&mut Buffer>> =
+        vec![vec![&mut input_buffer, &mut output_buffer, &mut dim_buffer]];
     let shader = device.create_shader_module(include_str!("shortcut.wgsl"), "main");
-    device.execute_blocking(&groups, shader, (nn / 64, nn / 64, 1));
+    device.execute_blocking(&groups, shader, (dim.div_ceil(16), dim.div_ceil(16), 1));
     pollster::block_on(output_buffer.fetch_data_from_device(data));
 }
 
@@ -100,8 +74,8 @@ fn cpu_compute(data: &[u32], dim: u32) -> Vec<u32> {
 
 fn main() {
     use std::time::Instant;
-    let test_for_correctness = true;
     let dim = 6300u32;
+    let test_for_correctness = true;
     let initial_data = generate_data(dim as usize);
     let mut data = initial_data.clone();
     let now = Instant::now();

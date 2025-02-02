@@ -10,12 +10,12 @@ fn generate_data(dim: usize) -> Vec<u32> {
     data
 }
 
-async fn compute(data: &Vec<u32>, dim: u32) -> Vec<u32> {
+fn compute(data: &mut Vec<u32>, dim: u32) {
     let instance = Instance::new();
-    let device = instance
-        .autoselect(PowerPreference::HighPerformance, LimitType::Highest)
-        .await
-        .unwrap();
+    let device = pollster::block_on(
+        instance.autoselect(PowerPreference::HighPerformance, LimitType::Highest),
+    )
+    .unwrap();
 
     let mut input_buffer = device.create_buffer(
         Some("input"),
@@ -23,7 +23,7 @@ async fn compute(data: &Vec<u32>, dim: u32) -> Vec<u32> {
             output: true,
             read_only: true,
         },
-        shute::BufferInit::WithData(data),
+        shute::BufferInit::WithData(&data),
     );
     let mut output_buffer = device.create_buffer(
         Some("output"),
@@ -31,64 +31,82 @@ async fn compute(data: &Vec<u32>, dim: u32) -> Vec<u32> {
             output: true,
             read_only: false,
         },
-        shute::BufferInit::<Vec<f32>>::WithSize(input_buffer.size()),
+        shute::BufferInit::<f32>::WithSize(input_buffer.size()),
     );
     let mut dim_buffer = device.create_buffer(
         Some("dim"),
         shute::BufferType::UniformBuffer,
         shute::BufferInit::WithData(dim),
     );
-    let mut groups: Vec<Vec<&mut Buffer>> =
+    let groups: Vec<Vec<&mut Buffer>> =
         vec![vec![&mut input_buffer, &mut output_buffer, &mut dim_buffer]];
-    device.send_all_data_to_device(&groups);
-    let shader = device.create_shader_module(include_str!("shortcut.wgsl"), "main".to_string());
-    device
-        .execute_blocking(&groups, shader, (dim, dim, 1))
-        .await;
-    device.fetch_all_data_from_device(&mut groups).await;
-    let output: Vec<u32> =
-        bytemuck::cast_slice(&output_buffer.read_output_data().as_ref().unwrap()).to_vec();
+    let shader = device.create_shader_module(include_str!("shortcut.wgsl"), "main");
+    device.execute_blocking(&groups, shader, (dim, dim, 1));
 
-    output
+    pollster::block_on(output_buffer.fetch_data_from_device(data));
 }
-fn cpu_compute(data: &Vec<u32>, dim: u32) -> Vec<u32> {
+
+// V1 cpu compute, parallel (sort of)
+fn cpu_compute(data: &[u32], dim: u32) -> Vec<u32> {
+    use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
+    use std::sync::atomic::{AtomicU32, Ordering};
     let dim = dim as usize;
-    let mut output = vec![0; dim * dim];
+    let mut transposed = vec![0; data.len()];
     for i in 0..dim {
+        for j in 0..dim {
+            transposed[dim * j + i] = data[dim * i + j];
+        }
+    }
+    let output: Vec<_> = (0..dim * dim).map(|_| AtomicU32::new(0)).collect();
+    (0..dim).into_par_iter().for_each(|i| {
         for j in 0..dim {
             let mut smallest = u32::MAX;
             for k in 0..dim {
-                let sum = data[dim * i + k] + data[dim * k + j];
+                let sum = data[dim * i + k] + transposed[dim * j + k];
                 smallest = std::cmp::min(sum, smallest);
             }
-            output[dim * i + j] = smallest;
+            output[dim * i + j].store(smallest, std::sync::atomic::Ordering::Relaxed);
         }
-    }
+    });
     output
+        .par_iter()
+        .map(|n| n.load(Ordering::Relaxed))
+        .collect()
 }
 
 fn main() {
     use std::time::Instant;
-    let dim = 500u32;
-    let data = generate_data(dim as usize);
+    let dim = 6300u32;
+    let test_for_correctness = true;
+    let initial_data = generate_data(dim as usize);
+    let mut data = initial_data.clone();
     let now = Instant::now();
-    let gpu_result = pollster::block_on(compute(&data, dim));
+    compute(&mut data, dim);
     let gpu_elapsed = now.elapsed();
-    let now = Instant::now();
-    let cpu_result = cpu_compute(&data, dim);
-    let cpu_elapsed = now.elapsed();
-    println!(
-        "GPU took: {:.2?}, CPU took: {:.2?}",
-        gpu_elapsed, cpu_elapsed
-    );
-    println!("Verifying correctness...");
-    if cpu_result
-        .iter()
-        .zip(gpu_result.iter())
-        .all(|(a, b)| a == b)
-    {
-        println!("Results are correct.");
-    } else {
-        println!("Results are inconsistent.");
+    println!("GPU took: {:.2?}", gpu_elapsed);
+    if test_for_correctness {
+        let now = Instant::now();
+        let cpu_result = cpu_compute(&initial_data, dim);
+        let cpu_elapsed = now.elapsed();
+        println!("CPU took: {:.2?}", cpu_elapsed);
+        println!("Verifying correctness...");
+        if cpu_result.iter().zip(data.iter()).all(|(a, b)| a == b) {
+            println!("Results match.");
+        } else {
+            println!("Results are inconsistent.");
+            println!("Initial Data:");
+            for line in initial_data.chunks(dim as usize) {
+                println!("{:?}", line);
+            }
+            println!("========================================");
+            println!("CPU result:");
+            for line in cpu_result.chunks(dim as usize) {
+                println!("{:?}", line);
+            }
+            println!("GPU result:");
+            for line in data.chunks(dim as usize) {
+                println!("{:?}", line);
+            }
+        }
     }
 }
