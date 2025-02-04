@@ -1,5 +1,5 @@
 use rand::Rng;
-use shute::{Buffer, BufferInit, BufferType, Instance, PowerPreference, ShaderType};
+use shute::{Buffer, BufferInit, BufferType, Instance, LimitType, PowerPreference, ShaderType};
 
 fn generate_data(dim: usize) -> Vec<u32> {
     let mut rng = rand::thread_rng();
@@ -10,10 +10,6 @@ fn generate_data(dim: usize) -> Vec<u32> {
     data
 }
 
-fn roundup(a: u32, b: u32) -> u32 {
-    a.div_ceil(b) * b
-}
-
 #[derive(ShaderType)]
 struct Input {
     dim: u32,
@@ -21,16 +17,16 @@ struct Input {
 }
 
 fn compute(data: &mut Vec<u32>, dim: u32) {
-    let nn = roundup(dim, 64);
+    let nn = dim.div_ceil(64) * 64;
     let instance = Instance::new();
     let device = pollster::block_on(
-        instance.autoselect(PowerPreference::HighPerformance, shute::LimitType::Highest),
+        instance.autoselect(PowerPreference::HighPerformance, LimitType::Highest),
     )
     .unwrap();
 
     let mut input_buffer = device.create_buffer(
         Some("input"),
-        shute::BufferType::StorageBuffer {
+        BufferType::StorageBuffer {
             output: true,
             read_only: false,
         },
@@ -46,7 +42,7 @@ fn compute(data: &mut Vec<u32>, dim: u32) {
     );
     let mut output_buffer = device.create_buffer(
         Some("output"),
-        shute::BufferType::StorageBuffer {
+        BufferType::StorageBuffer {
             output: true,
             read_only: false,
         },
@@ -69,7 +65,11 @@ fn compute(data: &mut Vec<u32>, dim: u32) {
     device.execute_blocking(&groups, shader, (nn / 64, nn / 64, 1));
     pollster::block_on(output_buffer.fetch_data_from_device(data));
 }
+
+// V1 cpu compute, parallel (sort of)
 fn cpu_compute(data: &[u32], dim: u32) -> Vec<u32> {
+    use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
+    use std::sync::atomic::{AtomicU32, Ordering};
     let dim = dim as usize;
     let mut transposed = vec![0; data.len()];
     for i in 0..dim {
@@ -77,18 +77,21 @@ fn cpu_compute(data: &[u32], dim: u32) -> Vec<u32> {
             transposed[dim * j + i] = data[dim * i + j];
         }
     }
-    let mut output = vec![0; dim * dim];
-    for i in 0..dim {
+    let output: Vec<_> = (0..dim * dim).map(|_| AtomicU32::new(0)).collect();
+    (0..dim).into_par_iter().for_each(|i| {
         for j in 0..dim {
             let mut smallest = u32::MAX;
             for k in 0..dim {
                 let sum = data[dim * i + k] + transposed[dim * j + k];
                 smallest = std::cmp::min(sum, smallest);
             }
-            output[dim * i + j] = smallest;
+            output[dim * i + j].store(smallest, std::sync::atomic::Ordering::Relaxed);
         }
-    }
+    });
     output
+        .par_iter()
+        .map(|n| n.load(Ordering::Relaxed))
+        .collect()
 }
 
 fn main() {

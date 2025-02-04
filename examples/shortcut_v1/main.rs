@@ -1,5 +1,5 @@
 use rand::Rng;
-use shute::{Buffer, Instance, PowerPreference};
+use shute::{Buffer, BufferInit, BufferType, Instance, LimitType, PowerPreference};
 
 fn generate_data(dim: usize) -> Vec<u32> {
     let mut rng = rand::thread_rng();
@@ -14,46 +14,35 @@ async fn compute(data: &mut Vec<u32>, dim: u32) {
     // let now = Instant::now();
     let instance = Instance::new();
     let device = instance
-        .autoselect(PowerPreference::HighPerformance, shute::LimitType::Highest)
+        .autoselect(PowerPreference::HighPerformance, LimitType::Highest)
         .await
         .unwrap();
     let mut input_buffer = device.create_buffer(
         Some("input"),
-        shute::BufferType::StorageBuffer {
+        BufferType::StorageBuffer {
             output: true,
             read_only: true,
         },
-        shute::BufferInit::WithData(&data),
+        BufferInit::WithData(&data),
     );
     let mut output_buffer = device.create_buffer(
         Some("output"),
-        shute::BufferType::StorageBuffer {
+        BufferType::StorageBuffer {
             output: true,
             read_only: false,
         },
-        shute::BufferInit::<u32>::WithSize(data.len()),
+        BufferInit::<u32>::WithSize(data.len()),
     );
     let mut dim_buffer = device.create_buffer(
         Some("dim"),
-        shute::BufferType::UniformBuffer,
-        shute::BufferInit::WithData(dim),
+        BufferType::UniformBuffer,
+        BufferInit::WithData(dim),
     );
     let groups: Vec<Vec<&mut Buffer>> =
         vec![vec![&mut input_buffer, &mut output_buffer, &mut dim_buffer]];
-    // let elapsed = now.elapsed();
-    // println!("[GPU] Buffer setup completed in {:.2?}", elapsed);
-    // let now = Instant::now();
     let shader = device.create_shader_module(include_str!("shortcut.wgsl"), "main");
-    // let elapsed = now.elapsed();
-    // println!("[GPU] Shader module compiled in {:.2?}", elapsed);
-    // let now = Instant::now();
     device.execute_blocking(&groups, shader, (dim.div_ceil(16), dim.div_ceil(16), 1));
-    // let elapsed = now.elapsed();
-    // println!("[GPU] Compute completed in: {:.2?}", elapsed);
-    // let now = Instant::now();
     output_buffer.fetch_data_from_device(data).await;
-    // let elapsed = now.elapsed();
-    // println!("[GPU] Data transferred back from GPU in {:.2?}", elapsed);
 }
 // V1 cpu compute, parallel (sort of)
 fn cpu_compute(data: &[u32], dim: u32) -> Vec<u32> {

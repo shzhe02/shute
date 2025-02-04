@@ -1,5 +1,5 @@
 use rand::Rng;
-use shute::{Buffer, BufferInit, BufferType, Instance, PowerPreference, ShaderType};
+use shute::{Buffer, BufferInit, BufferType, Instance, LimitType, PowerPreference, ShaderType};
 
 fn generate_data(dim: usize) -> Vec<u32> {
     let mut rng = rand::thread_rng();
@@ -10,10 +10,6 @@ fn generate_data(dim: usize) -> Vec<u32> {
     data
 }
 
-fn roundup(a: u32, b: u32) -> u32 {
-    a.div_ceil(b) * b
-}
-
 #[derive(ShaderType)]
 struct Input {
     dim: u32,
@@ -21,16 +17,16 @@ struct Input {
 }
 
 fn compute(data: &mut Vec<u32>, dim: u32) {
-    let nn = roundup(dim, 64);
+    let nn = dim.div_ceil(64) * 64;
     let instance = Instance::new();
     let device = pollster::block_on(
-        instance.autoselect(PowerPreference::HighPerformance, shute::LimitType::Highest),
+        instance.autoselect(PowerPreference::HighPerformance, LimitType::Highest),
     )
     .unwrap();
 
     let mut input_buffer = device.create_buffer(
         Some("input"),
-        shute::BufferType::StorageBuffer {
+        BufferType::StorageBuffer {
             output: true,
             read_only: false,
         },
@@ -46,16 +42,16 @@ fn compute(data: &mut Vec<u32>, dim: u32) {
     );
     let mut output_buffer = device.create_buffer(
         Some("output"),
-        shute::BufferType::StorageBuffer {
+        BufferType::StorageBuffer {
             output: true,
             read_only: false,
         },
-        shute::BufferInit::WithData(data.to_owned()),
+        BufferInit::WithData(data.to_owned()),
     );
     let mut param_buffer = device.create_buffer(
         Some("params"),
-        shute::BufferType::UniformBuffer,
-        shute::BufferInit::WithData(Input { dim, nn }),
+        BufferType::UniformBuffer,
+        BufferInit::WithData(Input { dim, nn }),
     );
     let groups: Vec<Vec<&mut Buffer>> = vec![vec![
         &mut input_buffer,
