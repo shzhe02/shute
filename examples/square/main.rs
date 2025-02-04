@@ -1,39 +1,41 @@
 use shute::{Instance, PowerPreference};
 
-async fn compute() {
+fn compute(data: &mut Vec<u32>) {
     let instance = Instance::new();
-    let device = instance
-        .autoselect(PowerPreference::HighPerformance, shute::LimitType::Highest)
-        .await
-        .unwrap();
-    let shader = device.create_shader_module(include_str!("square.wgsl"), "main".to_string());
-    let data = (0..10).collect::<Vec<u32>>().to_vec();
+    let device = pollster::block_on(
+        instance.autoselect(PowerPreference::HighPerformance, shute::LimitType::Highest),
+    )
+    .unwrap();
+    let shader = device.create_shader_module(include_str!("square.wgsl"), "main");
     let mut input_buffer = device.create_buffer(
         Some("input"),
         shute::BufferType::StorageBuffer {
             output: false,
             read_only: true,
         },
-        shute::BufferInit::WithData(data),
+        shute::BufferInit::WithData(&data),
     );
-    let size = input_buffer.size();
+    let size = data.len() as u32;
     let mut output_buffer = device.create_buffer(
         Some("output"),
         shute::BufferType::StorageBuffer {
             output: true,
             read_only: false,
         },
-        shute::BufferInit::<Vec<u32>>::WithSize(size),
+        shute::BufferInit::<u32>::WithSize(size),
     );
-    let mut groups = vec![vec![&mut input_buffer, &mut output_buffer]];
-    device.send_all_data_to_device(&groups);
-    device.execute_blocking(&groups, shader, (size, 1, 1)).await;
-    device.fetch_all_data_from_device(&mut groups).await;
-    let output: Vec<u32> =
-        bytemuck::cast_slice(output_buffer.read_output_data().as_ref().unwrap()).to_vec();
-    dbg!(output);
+    let groups = vec![vec![&mut input_buffer, &mut output_buffer]];
+    device.execute_blocking(&groups, shader, (size, 1, 1));
+    pollster::block_on(output_buffer.fetch_data_from_device(data));
 }
 
 fn main() {
-    pollster::block_on(compute());
+    let mut data: Vec<u32> = (0..200).into_iter().collect();
+    for line in data.chunks(10) {
+        println!("{:?}", line);
+    }
+    compute(&mut data);
+    for line in data.chunks(10) {
+        println!("{:?}", line);
+    }
 }
