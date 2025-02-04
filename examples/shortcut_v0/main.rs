@@ -30,7 +30,7 @@ fn compute(data: &mut Vec<u32>, dim: u32) {
             output: true,
             read_only: false,
         },
-        shute::BufferInit::<f32>::WithSize(input_buffer.size()),
+        shute::BufferInit::<u32>::WithSize(input_buffer.size()),
     );
     let mut dim_buffer = device.create_buffer(
         Some("dim"),
