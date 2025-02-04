@@ -15,7 +15,7 @@ fn compute(data: &mut Vec<u32>) {
         },
         shute::BufferInit::WithData(&data),
     );
-    let size = data.len() as u32;
+    let size = data.len();
     let mut output_buffer = device.create_buffer(
         Some("output"),
         shute::BufferType::StorageBuffer {
@@ -25,12 +25,12 @@ fn compute(data: &mut Vec<u32>) {
         shute::BufferInit::<u32>::WithSize(size),
     );
     let groups = vec![vec![&mut input_buffer, &mut output_buffer]];
-    device.execute_blocking(&groups, shader, (size, 1, 1));
+    device.execute_blocking(&groups, shader, (size as u32, 1, 1));
     pollster::block_on(output_buffer.fetch_data_from_device(data));
 }
 
 fn main() {
-    let mut data: Vec<u32> = (0..200).into_iter().collect();
+    let mut data: Vec<u32> = (0..200).collect();
     for line in data.chunks(10) {
         println!("{:?}", line);
     }

@@ -34,7 +34,7 @@ fn compute(data: &mut Vec<u32>, dim: u32) {
             output: true,
             read_only: false,
         },
-        shute::BufferInit::WithSize::<u32>(nn * nn),
+        BufferInit::<u32>::WithSize((nn * nn) as usize),
     );
     let mut input_buffer_t = device.create_buffer(
         Some("input_t"),
@@ -42,7 +42,7 @@ fn compute(data: &mut Vec<u32>, dim: u32) {
             output: true,
             read_only: false,
         },
-        BufferInit::WithSize::<u32>(nn * nn),
+        BufferInit::<u32>::WithSize((nn * nn) as usize),
     );
     let mut output_buffer = device.create_buffer(
         Some("output"),
@@ -50,12 +50,12 @@ fn compute(data: &mut Vec<u32>, dim: u32) {
             output: true,
             read_only: false,
         },
-        shute::BufferInit::WithData(data.to_owned()),
+        BufferInit::WithData(data.to_owned()),
     );
     let mut param_buffer = device.create_buffer(
         Some("params"),
-        shute::BufferType::UniformBuffer,
-        shute::BufferInit::WithData(Input { dim, nn }),
+        BufferType::UniformBuffer,
+        BufferInit::WithData(Input { dim, nn }),
     );
     let groups: Vec<Vec<&mut Buffer>> = vec![vec![
         &mut input_buffer,
@@ -94,7 +94,7 @@ fn cpu_compute(data: &[u32], dim: u32) -> Vec<u32> {
 fn main() {
     use std::time::Instant;
     let test_for_correctness = true;
-    let dim = 6300u32;
+    let dim = 1000u32;
     let initial_data = generate_data(dim as usize);
     let mut data = initial_data.clone();
     let now = Instant::now();

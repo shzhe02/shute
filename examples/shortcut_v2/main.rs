@@ -34,7 +34,7 @@ fn compute(data: &mut Vec<u32>, dim: u32) {
             output: true,
             read_only: false,
         },
-        shute::BufferInit::WithSize::<u32>(nn * nn),
+        BufferInit::<u32>::WithSize((nn * nn) as usize),
     );
     let mut input_buffer_t = device.create_buffer(
         Some("input_t"),
@@ -42,7 +42,7 @@ fn compute(data: &mut Vec<u32>, dim: u32) {
             output: true,
             read_only: false,
         },
-        BufferInit::WithSize::<u32>(nn * nn),
+        BufferInit::<u32>::WithSize((nn * nn) as usize),
     );
     let mut output_buffer = device.create_buffer(
         Some("output"),

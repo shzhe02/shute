@@ -84,7 +84,7 @@ impl Device {
         init_with: BufferInit<T>,
     ) -> Buffer {
         let buffer_contents = match init_with {
-            BufferInit::WithSize(size) => BufferContents::Size(size * size_of::<T>() as u32),
+            BufferInit::WithSize(size) => BufferContents::Size(size as u32 * size_of::<T>() as u32),
             BufferInit::WithData(data) => match buffer_type {
                 BufferType::StorageBuffer { .. } => {
                     let mut buffer = StorageBuffer::new(vec![]);

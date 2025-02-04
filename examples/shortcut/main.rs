@@ -4,7 +4,7 @@ use shute::{Buffer, Instance, LimitType, PowerPreference};
 fn generate_data(dim: usize) -> Vec<u32> {
     let mut rng = rand::thread_rng();
     let mut data: Vec<u32> = (0..dim * dim).map(|_| rng.gen_range(0..100)).collect();
-    for i in 0..dim as usize {
+    for i in 0..dim {
         data[dim * i + i] = 0;
     }
     data
@@ -31,7 +31,7 @@ fn compute(data: &mut Vec<u32>, dim: u32) {
             output: true,
             read_only: false,
         },
-        shute::BufferInit::<f32>::WithSize(input_buffer.size()),
+        shute::BufferInit::<u32>::WithSize(data.len()),
     );
     let mut dim_buffer = device.create_buffer(
         Some("dim"),

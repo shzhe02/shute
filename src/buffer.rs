@@ -27,7 +27,7 @@ pub enum BufferInit<T>
 where
     T: ShaderType + WriteInto,
 {
-    WithSize(u32),
+    WithSize(usize),
     WithData(T),
 }
 
