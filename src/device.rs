@@ -12,6 +12,8 @@ pub struct Device {
     device: wgpu::Device,
     queue: wgpu::Queue,
     limits: Limits,
+    staging_size: u32,
+    staging: wgpu::Buffer,
 }
 
 pub enum LimitType {
@@ -98,7 +100,12 @@ impl Device {
                 }
             },
         };
-        Buffer::new(label, self, buffer_type, buffer_contents)
+        let buffer = Buffer::new(label, self, buffer_type, buffer_contents);
+        if let BufferType::StorageBuffer { output: true, .. } = buffer_type {}
+        buffer
+    }
+    pub fn staging(&self) -> &wgpu::Buffer {
+        &self.staging
     }
     pub fn device(&self) -> &wgpu::Device {
         &self.device
@@ -193,19 +200,19 @@ impl Device {
                 workgroup_dimensions.2,
             );
         }
-        for buffer_group in buffers.iter() {
-            for buffer in buffer_group {
-                if let Some(staging) = buffer.staging() {
-                    encoder.copy_buffer_to_buffer(
-                        buffer.buffer(),
-                        0,
-                        staging,
-                        0,
-                        buffer.size() as u64,
-                    );
-                }
-            }
-        }
+        // for buffer_group in buffers.iter() {
+        //     for buffer in buffer_group {
+        //         if let Some(staging) = buffer.staging() {
+        //             encoder.copy_buffer_to_buffer(
+        //                 buffer.buffer(),
+        //                 0,
+        //                 staging,
+        //                 0,
+        //                 buffer.size() as u64,
+        //             );
+        //         }
+        //     }
+        // }
         self.queue.submit(Some(encoder.finish()));
     }
     pub fn execute_blocking(

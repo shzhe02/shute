@@ -20,7 +20,7 @@ pub struct Buffer<'a> {
     buffer_type: BufferType,
     contents: BufferContents,
     buffer: wgpu::Buffer,
-    staging: Option<wgpu::Buffer>,
+    // staging: Option<wgpu::Buffer>,
 }
 
 pub enum BufferInit<T>
@@ -85,16 +85,16 @@ impl<'a> Buffer<'a> {
             buffer_type,
             contents,
             buffer,
-            staging: if let BufferType::StorageBuffer { output: true, .. } = buffer_type {
-                Some(device.device().create_buffer(&wgpu::BufferDescriptor {
-                    label: label.map(|s| s.to_string() + "-output").as_deref(),
-                    size,
-                    usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-                    mapped_at_creation: false,
-                }))
-            } else {
-                None
-            },
+            // staging: if let BufferType::StorageBuffer { output: true, .. } = buffer_type {
+            //     Some(device.device().create_buffer(&wgpu::BufferDescriptor {
+            //         label: label.map(|s| s.to_string() + "-output").as_deref(),
+            //         size,
+            //         usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            //         mapped_at_creation: false,
+            //     }))
+            // } else {
+            //     None
+            // },
         }
     }
     pub fn size(&self) -> u32 {
@@ -115,9 +115,9 @@ impl<'a> Buffer<'a> {
     pub fn buffer(&self) -> &wgpu::Buffer {
         &self.buffer
     }
-    pub fn staging(&self) -> &Option<wgpu::Buffer> {
-        &self.staging
-    }
+    // pub fn staging(&self) -> &Option<wgpu::Buffer> {
+    //     &self.staging
+    // }
     pub fn send_data_to_device<T>(&self, data: &T)
     where
         T: ShaderType + WriteInto,
@@ -143,21 +143,21 @@ impl<'a> Buffer<'a> {
         T: ShaderType + ReadFrom,
     {
         // TODO: Return an error if the output is not large enough to hold the buffer's data.
-        if let Some(staging) = self.staging() {
-            let slice = staging.slice(..);
-            let (tx, rx) = flume::bounded(1);
-            slice.map_async(wgpu::MapMode::Read, move |r| tx.send(r).unwrap());
-            self.device
-                .device()
-                .poll(wgpu::Maintain::wait())
-                .panic_on_timeout();
-            rx.recv_async().await.unwrap().unwrap();
-            {
-                let view = slice.get_mapped_range();
-                let buffer = StorageBuffer::new(&*view);
-                buffer.read(output).unwrap();
-            }
-            staging.unmap();
-        }
+        // if let Some(staging) = self.staging() {
+        //     let slice = staging.slice(..);
+        //     let (tx, rx) = flume::bounded(1);
+        //     slice.map_async(wgpu::MapMode::Read, move |r| tx.send(r).unwrap());
+        //     self.device
+        //         .device()
+        //         .poll(wgpu::Maintain::wait())
+        //         .panic_on_timeout();
+        //     rx.recv_async().await.unwrap().unwrap();
+        //     {
+        //         let view = slice.get_mapped_range();
+        //         let buffer = StorageBuffer::new(&*view);
+        //         buffer.read(output).unwrap();
+        //     }
+        //     staging.unmap();
+        // }
     }
 }
