@@ -97,7 +97,7 @@ fn cpu_compute(data: &[u32], dim: u32) -> Vec<u32> {
 fn main() {
     use std::time::Instant;
     let test_for_correctness = true;
-    let dim = 1000u32;
+    let dim = 6300u32;
     let initial_data = generate_data(dim as usize);
     let mut data = initial_data.clone();
     let now = Instant::now();
