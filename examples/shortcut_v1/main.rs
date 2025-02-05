@@ -1,16 +1,16 @@
 use rand::Rng;
 use shute::{Buffer, BufferInit, BufferType, Instance, LimitType, PowerPreference};
 
-fn generate_data(dim: usize) -> Vec<u32> {
+fn generate_data(dim: usize) -> Vec<f32> {
     let mut rng = rand::thread_rng();
-    let mut data: Vec<u32> = (0..dim * dim).map(|_| rng.gen_range(0..100)).collect();
+    let mut data: Vec<f32> = (0..dim * dim).map(|_| rng.gen::<f32>()).collect();
     for i in 0..dim {
-        data[dim * i + i] = 0;
+        data[dim * i + i] = 0.0;
     }
     data
 }
 
-async fn compute(data: &mut Vec<u32>, dim: u32) {
+async fn compute(data: &mut Vec<f32>, dim: u32) {
     // let now = Instant::now();
     let instance = Instance::new();
     let device = instance
@@ -31,7 +31,7 @@ async fn compute(data: &mut Vec<u32>, dim: u32) {
             output: true,
             read_only: false,
         },
-        BufferInit::<u32>::WithSize(data.len()),
+        BufferInit::<f32>::WithSize(data.len()),
     );
     let mut dim_buffer = device.create_buffer(
         Some("dim"),
@@ -45,23 +45,31 @@ async fn compute(data: &mut Vec<u32>, dim: u32) {
     output_buffer.fetch_data_from_device(data).await;
 }
 // V1 cpu compute, parallel (sort of)
-fn cpu_compute(data: &[u32], dim: u32) -> Vec<u32> {
+fn cpu_compute(data: &[f32], dim: u32) -> Vec<f32> {
+    use atomic_float::AtomicF32;
     use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
-    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::atomic::Ordering;
+
     let dim = dim as usize;
-    let mut transposed = vec![0; data.len()];
+    let mut transposed = vec![0.0; data.len()];
     for i in 0..dim {
         for j in 0..dim {
             transposed[dim * j + i] = data[dim * i + j];
         }
     }
-    let output: Vec<_> = (0..dim * dim).map(|_| AtomicU32::new(0)).collect();
+    let output: Vec<_> = (0..dim * dim).map(|_| AtomicF32::new(0.0)).collect();
     (0..dim).into_par_iter().for_each(|i| {
         for j in 0..dim {
-            let mut smallest = u32::MAX;
+            let mut smallest = f32::MAX;
             for k in 0..dim {
                 let sum = data[dim * i + k] + transposed[dim * j + k];
-                smallest = std::cmp::min(sum, smallest);
+                smallest = {
+                    if smallest < sum {
+                        smallest
+                    } else {
+                        sum
+                    }
+                };
             }
             output[dim * i + j].store(smallest, std::sync::atomic::Ordering::Relaxed);
         }
