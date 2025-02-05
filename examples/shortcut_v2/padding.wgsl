@@ -1,6 +1,6 @@
-@group(0) @binding(0) var<storage, read_write> input: array<u32>;
-@group(0) @binding(1) var<storage, read_write> input_t: array<u32>;
-@group(0) @binding(2) var<storage, read_write> output: array<u32>;
+@group(0) @binding(0) var<storage, read_write> input: array<f32>;
+@group(0) @binding(1) var<storage, read_write> input_t: array<f32>;
+@group(0) @binding(2) var<storage, read_write> output: array<f32>;
 
 struct Input {
     dim: u32,
@@ -15,7 +15,7 @@ fn main(@builtin(local_invocation_id) local_id: vec3<u32>, @builtin(workgroup_id
     
     for (var jb = 0u; jb < params.nn; jb += 64u) {
         let j = jb + ja;
-        var v = 4294967294u;
+        var v = 10.0;
         if (i < params.dim && j < params.dim) {
             v = output[params.dim * i + j];
         }

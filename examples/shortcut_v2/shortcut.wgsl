@@ -1,6 +1,6 @@
-@group(0) @binding(0) var<storage, read_write> input: array<u32>;
-@group(0) @binding(1) var<storage, read_write> input_t: array<u32>;
-@group(0) @binding(2) var<storage, read_write> output: array<u32>;
+@group(0) @binding(0) var<storage, read_write> input: array<f32>;
+@group(0) @binding(1) var<storage, read_write> input_t: array<f32>;
+@group(0) @binding(2) var<storage, read_write> output: array<f32>;
 
 struct Input {
     dim: u32,
@@ -17,16 +17,16 @@ fn main(@builtin(local_invocation_id) local_id: vec3<u32>, @builtin(workgroup_id
     let nn = params.nn;
     let dim = params.dim;
 
-    var v = array<array<u32, 8>, 8>();
+    var v = array<array<f32, 8>, 8>();
 
     for (var ib = 0u; ib < 8u; ib += 1u) {
         for (var jb = 0u; jb < 8u; jb += 1u) {
-            v[ib][jb] = 4294967294u;
+            v[ib][jb] = 10.0;
         }
     }
     for (var k = 0u; k < dim; k += 1u) {
-        var x = array<u32, 8>();
-        var y = array<u32, 8>();
+        var x = array<f32, 8>();
+        var y = array<f32, 8>();
         for (var ib = 0u; ib < 8u; ib += 1u) {
             let i = ic * 64u + ib * 8u + ia;
             x[ib] = input_t[nn*k + i];
@@ -50,17 +50,4 @@ fn main(@builtin(local_invocation_id) local_id: vec3<u32>, @builtin(workgroup_id
             }
         }
     }
-    // ============================================
-    // let j = global_id.y;
-    // if (i >= dim || j >= dim) {
-    //     return;
-    // }
-    // var smallest: u32 = 4294967294u;
-    // for (var k = 0u; k < dim; k += 1u) {
-    //     let x = input[dim*j + k];
-    //     let y = input[dim*k + i];
-    //     let z = x + y;
-    //     smallest = min(smallest, z);
-    // }
-    // output[dim*j + i] = smallest;
 }

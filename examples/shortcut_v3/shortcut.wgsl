@@ -1,14 +1,14 @@
-@group(0) @binding(0) var<storage, read_write> input: array<u32>;
-@group(0) @binding(1) var<storage, read_write> input_t: array<u32>;
-@group(0) @binding(2) var<storage, read_write> output: array<u32>;
+@group(0) @binding(0) var<storage, read_write> input: array<f32>;
+@group(0) @binding(1) var<storage, read_write> input_t: array<f32>;
+@group(0) @binding(2) var<storage, read_write> output: array<f32>;
 
 struct Input {
     dim: u32,
     nn: u32
 }
 
-var<workgroup> xx: array<array<u32, 64>, 4>;
-var<workgroup> yy: array<array<u32, 64>, 4>;
+var<workgroup> xx: array<array<f32, 64>, 4>;
+var<workgroup> yy: array<array<f32, 64>, 4>;
 
 @group(0) @binding(3) var<uniform> params: Input;
 @compute @workgroup_size(8, 8)
@@ -20,31 +20,13 @@ fn main(@builtin(local_invocation_id) local_id: vec3<u32>, @builtin(workgroup_id
     let nn = params.nn;
     let dim = params.dim;
 
-    var v = array<array<u32, 8>, 8>();
+    var v = array<array<f32, 8>, 8>();
 
     for (var ib = 0u; ib < 8u; ib += 1u) {
         for (var jb = 0u; jb < 8u; jb += 1u) {
-            v[ib][jb] = 4294967294u;
+            v[ib][jb] = 10.0;
         }
     }
-    // for (var k = 0u; k < dim; k += 1u) {
-    //     var x = array<u32, 8>();
-    //     var y = array<u32, 8>();
-    //     for (var ib = 0u; ib < 8u; ib += 1u) {
-    //         let i = ic * 64u + ib * 8u + ia;
-    //         x[ib] = input_t[nn*k + i];
-    //     }
-    //     for (var jb = 0u; jb < 8u; jb += 1u) {
-    //         let j = jc * 64u + jb * 8u + ja;
-    //         y[jb] = input[nn*k + j];
-    //     }
-    //     for (var ib = 0u; ib < 8u; ib += 1u) {
-    //         for (var jb = 0u; jb < 8u; jb += 1u) {
-    //             v[ib][jb] = min(v[ib][jb], x[ib] + y[jb]);
-    //         }
-    //     }
-    // }
-
     for (var ks = 0u; ks < dim; ks += 4u) {
         let ija = ja * 8u + ia;
         let i = ic * 64u + ija;
@@ -58,7 +40,7 @@ fn main(@builtin(local_invocation_id) local_id: vec3<u32>, @builtin(workgroup_id
         workgroupBarrier();
 
         for (var f = 0u; f < 4u; f += 1u) {
-            var y = array<u32, 8>();
+            var y = array<f32, 8>();
             for (var jb = 0u; jb < 8u; jb += 1u) {
                 y[jb] = yy[f][jb * 8u + ja];
             }
