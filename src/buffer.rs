@@ -20,7 +20,7 @@ pub struct Buffer<'a> {
     buffer_type: BufferType,
     contents: BufferContents,
     buffer: wgpu::Buffer,
-    staging: Option<wgpu::Buffer>,
+    // staging: Option<wgpu::Buffer>,
 }
 
 pub enum BufferInit<T>
@@ -52,10 +52,10 @@ impl<'a> Buffer<'a> {
         buffer_type: BufferType,
         contents: BufferContents,
     ) -> Self {
-        let size: u64 = match &contents {
-            BufferContents::Size(size) => *size as u64,
-            BufferContents::Data(data) => data.len() as u64,
-        };
+        // let size: u64 = match &contents {
+        //     BufferContents::Size(size) => *size as u64,
+        //     BufferContents::Data(data) => data.len() as u64,
+        // };
         let usage = {
             let buffer_type = match buffer_type {
                 BufferType::StorageBuffer { .. } => wgpu::BufferUsages::STORAGE,
@@ -85,20 +85,26 @@ impl<'a> Buffer<'a> {
             buffer_type,
             contents,
             buffer,
-            staging: if let BufferType::StorageBuffer { output: true, .. } = buffer_type {
-                Some(device.device().create_buffer(&wgpu::BufferDescriptor {
-                    label: label.map(|s| s.to_string() + "-output").as_deref(),
-                    size,
-                    usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-                    mapped_at_creation: false,
-                }))
-            } else {
-                None
-            },
+            // staging: if let BufferType::StorageBuffer { output: true, .. } = buffer_type {
+            //     Some(device.device().create_buffer(&wgpu::BufferDescriptor {
+            //         label: label.map(|s| s.to_string() + "-output").as_deref(),
+            //         size,
+            //         usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            //         mapped_at_creation: false,
+            //     }))
+            // } else {
+            //     None
+            // },
         }
     }
     pub fn size(&self) -> u32 {
         self.contents.size()
+    }
+    pub fn output(&self) -> bool {
+        matches!(
+            self.buffer_type,
+            BufferType::StorageBuffer { output: true, .. }
+        )
     }
     pub fn data(&self) -> Option<&Vec<u8>> {
         match &self.contents {
@@ -115,9 +121,9 @@ impl<'a> Buffer<'a> {
     pub fn buffer(&self) -> &wgpu::Buffer {
         &self.buffer
     }
-    pub fn staging(&self) -> &Option<wgpu::Buffer> {
-        &self.staging
-    }
+    // pub fn staging(&self) -> &Option<wgpu::Buffer> {
+    //     &self.staging
+    // }
     pub fn send_data_to_device<T>(&self, data: &T)
     where
         T: ShaderType + WriteInto,
@@ -142,9 +148,16 @@ impl<'a> Buffer<'a> {
     where
         T: ShaderType + ReadFrom,
     {
+        if !self.output() {
+            return;
+        }
+        self.device.stage_output(self);
+
         // TODO: Return an error if the output is not large enough to hold the buffer's data.
-        if let Some(staging) = self.staging() {
-            let slice = staging.slice(..);
+        let staging = self.device.staging().borrow();
+        if let Some(staging) = staging.as_ref() {
+            let output_size = self.size() as u64;
+            let slice = staging.slice(..output_size);
             let (tx, rx) = flume::bounded(1);
             slice.map_async(wgpu::MapMode::Read, move |r| tx.send(r).unwrap());
             self.device

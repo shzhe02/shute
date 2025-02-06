@@ -1,5 +1,6 @@
+use std::cell::RefCell;
+
 use encase::{internal::WriteInto, ShaderType, StorageBuffer, UniformBuffer};
-use wgpu::Maintain;
 
 use crate::{
     buffer::{Buffer, BufferContents, BufferInit, BufferType},
@@ -12,6 +13,7 @@ pub struct Device {
     device: wgpu::Device,
     queue: wgpu::Queue,
     limits: Limits,
+    staging_buffer: RefCell<Option<wgpu::Buffer>>,
 }
 
 pub enum LimitType {
@@ -46,6 +48,7 @@ impl Device {
             device,
             queue,
             limits: Limits::from_wgpu_limits(limits),
+            staging_buffer: None.into(),
         })
     }
     pub fn new(
@@ -59,6 +62,7 @@ impl Device {
             device,
             queue,
             limits: Limits::from_wgpu_limits(limits),
+            staging_buffer: None.into(),
         }
     }
     pub fn limits(&self) -> &Limits {
@@ -77,6 +81,18 @@ impl Device {
             entry_point,
         )
     }
+    // pub fn create_shader_module_with_workgroup_size(
+    //     &self,
+    //     shader: &str,
+    //     entry_point: &str,
+    //     workgroup_dimensions: (u32, u32, u32),
+    // ) -> Option<ShaderModule> {
+    //     // FIXME: change option to result later
+    //     if let Some(entry_pos) = shader.find(entry_point) {
+    //         shader.replace(from, to)
+    //     }
+    //     None
+    // }
     pub fn create_buffer<T: ShaderType + WriteInto>(
         &self,
         label: Option<&str>,
@@ -98,7 +114,12 @@ impl Device {
                 }
             },
         };
-        Buffer::new(label, self, buffer_type, buffer_contents)
+        let buffer = Buffer::new(label, self, buffer_type, buffer_contents);
+        if let BufferType::StorageBuffer { output: true, .. } = buffer_type {}
+        buffer
+    }
+    pub fn staging(&self) -> &RefCell<Option<wgpu::Buffer>> {
+        &self.staging_buffer
     }
     pub fn device(&self) -> &wgpu::Device {
         &self.device
@@ -106,11 +127,20 @@ impl Device {
     pub fn queue(&self) -> &wgpu::Queue {
         &self.queue
     }
+    pub fn override_staging(&self, size: u32) {
+        let staging_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("shute staging buffer"),
+            size: size as u64,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+        self.staging_buffer.replace(Some(staging_buffer));
+    }
     pub async fn execute_async(
         &self,
         buffers: &Vec<Vec<&mut Buffer<'_>>>,
         shader_module: ShaderModule,
-        workgroup_dimensions: (u32, u32, u32),
+        dispatch_dimensions: (u32, u32, u32),
     ) {
         let (bind_group_layouts, bind_groups): (Vec<_>, Vec<_>) = buffers
             .iter()
@@ -188,23 +218,28 @@ impl Device {
                 compute_pass.set_bind_group(idx as u32, bind_group, &[]);
             }
             compute_pass.dispatch_workgroups(
-                workgroup_dimensions.0,
-                workgroup_dimensions.1,
-                workgroup_dimensions.2,
+                dispatch_dimensions.0,
+                dispatch_dimensions.1,
+                dispatch_dimensions.2,
             );
         }
-        for buffer_group in buffers.iter() {
-            for buffer in buffer_group {
-                if let Some(staging) = buffer.staging() {
-                    encoder.copy_buffer_to_buffer(
-                        buffer.buffer(),
-                        0,
-                        staging,
-                        0,
-                        buffer.size() as u64,
-                    );
-                }
-            }
+        if let Some(max_output_buffer_size) = buffers
+            .iter()
+            .flatten()
+            .filter(|buffer| buffer.output())
+            .map(|buffer| buffer.size())
+            .max()
+        {
+            self.override_staging(max_output_buffer_size);
+        }
+        self.queue.submit(Some(encoder.finish()));
+    }
+    pub fn stage_output(&self, buffer: &Buffer) {
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+        if let Some(staging) = self.staging_buffer.borrow().as_ref() {
+            encoder.copy_buffer_to_buffer(buffer.buffer(), 0, staging, 0, buffer.size() as u64);
         }
         self.queue.submit(Some(encoder.finish()));
     }
@@ -212,12 +247,12 @@ impl Device {
         &self,
         buffers: &Vec<Vec<&mut Buffer<'_>>>,
         shader_module: ShaderModule,
-        workgroup_dimensions: (u32, u32, u32),
+        dispatch_dimensions: (u32, u32, u32),
     ) {
-        pollster::block_on(self.execute_async(buffers, shader_module, workgroup_dimensions));
+        pollster::block_on(self.execute_async(buffers, shader_module, dispatch_dimensions));
         self.device().poll(wgpu::MaintainBase::Wait);
     }
     pub fn block_until_complete(&self) {
-        self.device.poll(Maintain::Wait);
+        self.device.poll(wgpu::Maintain::Wait);
     }
 }

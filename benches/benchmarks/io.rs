@@ -39,10 +39,10 @@ fn io_oneshot(c: &mut Criterion) {
         instance.autoselect(PowerPreference::HighPerformance, LimitType::Downlevel),
     )
     .unwrap();
-
     // Benchmarks for sending data from CPU to GPU
 
     let size = device.limits().max_buffer_size as usize / size_of::<u32>();
+    device.override_staging((size * size_of::<u32>()) as u32);
     dbg!(size);
     let mut buffer: Option<Buffer> = None;
     let data = generate_data(size);
