@@ -52,10 +52,10 @@ impl<'a> Buffer<'a> {
         buffer_type: BufferType,
         contents: BufferContents,
     ) -> Self {
-        let size: u64 = match &contents {
-            BufferContents::Size(size) => *size as u64,
-            BufferContents::Data(data) => data.len() as u64,
-        };
+        // let size: u64 = match &contents {
+        //     BufferContents::Size(size) => *size as u64,
+        //     BufferContents::Data(data) => data.len() as u64,
+        // };
         let usage = {
             let buffer_type = match buffer_type {
                 BufferType::StorageBuffer { .. } => wgpu::BufferUsages::STORAGE,
@@ -100,6 +100,12 @@ impl<'a> Buffer<'a> {
     pub fn size(&self) -> u32 {
         self.contents.size()
     }
+    pub fn output(&self) -> bool {
+        matches!(
+            self.buffer_type,
+            BufferType::StorageBuffer { output: true, .. }
+        )
+    }
     pub fn data(&self) -> Option<&Vec<u8>> {
         match &self.contents {
             BufferContents::Size(_) => None,
@@ -142,22 +148,29 @@ impl<'a> Buffer<'a> {
     where
         T: ShaderType + ReadFrom,
     {
+        if !self.output() {
+            return;
+        }
+        self.device.stage_output(self);
+
         // TODO: Return an error if the output is not large enough to hold the buffer's data.
-        // if let Some(staging) = self.staging() {
-        //     let slice = staging.slice(..);
-        //     let (tx, rx) = flume::bounded(1);
-        //     slice.map_async(wgpu::MapMode::Read, move |r| tx.send(r).unwrap());
-        //     self.device
-        //         .device()
-        //         .poll(wgpu::Maintain::wait())
-        //         .panic_on_timeout();
-        //     rx.recv_async().await.unwrap().unwrap();
-        //     {
-        //         let view = slice.get_mapped_range();
-        //         let buffer = StorageBuffer::new(&*view);
-        //         buffer.read(output).unwrap();
-        //     }
-        //     staging.unmap();
-        // }
+        let staging = self.device.staging().borrow();
+        if let Some(staging) = staging.as_ref() {
+            let output_size = self.size() as u64;
+            let slice = staging.slice(..output_size);
+            let (tx, rx) = flume::bounded(1);
+            slice.map_async(wgpu::MapMode::Read, move |r| tx.send(r).unwrap());
+            self.device
+                .device()
+                .poll(wgpu::Maintain::wait())
+                .panic_on_timeout();
+            rx.recv_async().await.unwrap().unwrap();
+            {
+                let view = slice.get_mapped_range();
+                let buffer = StorageBuffer::new(&*view);
+                buffer.read(output).unwrap();
+            }
+            staging.unmap();
+        }
     }
 }

@@ -92,6 +92,19 @@ fn main() {
             println!("Results match.");
         } else {
             println!("Results are inconsistent.");
+            println!("Initial Data:");
+            for line in initial_data.chunks(dim as usize) {
+                println!("{:?}", line);
+            }
+            println!("========================================");
+            println!("CPU result:");
+            for line in cpu_result.chunks(dim as usize) {
+                println!("{:?}", line);
+            }
+            println!("GPU result:");
+            for line in data.chunks(dim as usize) {
+                println!("{:?}", line);
+            }
         }
     }
 }
