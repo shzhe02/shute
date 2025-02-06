@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 
 use encase::{internal::WriteInto, ShaderType, StorageBuffer, UniformBuffer};
+use regex::Regex;
 
 use crate::{
     buffer::{Buffer, BufferContents, BufferInit, BufferType},
@@ -81,18 +82,36 @@ impl Device {
             entry_point,
         )
     }
-    // pub fn create_shader_module_with_workgroup_size(
-    //     &self,
-    //     shader: &str,
-    //     entry_point: &str,
-    //     workgroup_dimensions: (u32, u32, u32),
-    // ) -> Option<ShaderModule> {
-    //     // FIXME: change option to result later
-    //     if let Some(entry_pos) = shader.find(entry_point) {
-    //         shader.replace(from, to)
-    //     }
-    //     None
-    // }
+    pub fn create_shader_module_with_workgroup_size(
+        &self,
+        shader: &str,
+        entry_point: &str,
+        workgroup_dimensions: (u32, u32, u32),
+    ) -> Option<ShaderModule> {
+        // FIXME: change option to result later
+        //
+        // FIXME: this is also some terrible string manipulation. Find a better pure-regex alternative.
+        let mut modified_shader = shader.to_string();
+        let mut modified = false;
+        if let Some(entry_pos) = shader.find(&("fn ".to_string() + entry_point)) {
+            let workgroup_size_pattern =
+                Regex::new(r"@workgroup_size\(([0-9]+,\s*)*[0-9]+\)").unwrap();
+            let matches = workgroup_size_pattern.find_iter(shader);
+            if let Some(found) = matches.filter(|hit| hit.end() < entry_pos).last() {
+                let found = found.start();
+                let new_workgroup_size = format!(
+                    "@workgroup_size({}, {}, {})",
+                    workgroup_dimensions.0, workgroup_dimensions.1, workgroup_dimensions.2
+                );
+                modified_shader.replace_range(found..entry_pos, &new_workgroup_size);
+                modified = true;
+            }
+        }
+        if !modified {
+            return None;
+        }
+        Some(self.create_shader_module(&modified_shader, entry_point))
+    }
     pub fn create_buffer<T: ShaderType + WriteInto>(
         &self,
         label: Option<&str>,
