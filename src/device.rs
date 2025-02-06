@@ -81,6 +81,18 @@ impl Device {
             entry_point,
         )
     }
+    // pub fn create_shader_module_with_workgroup_size(
+    //     &self,
+    //     shader: &str,
+    //     entry_point: &str,
+    //     workgroup_dimensions: (u32, u32, u32),
+    // ) -> Option<ShaderModule> {
+    //     // FIXME: change option to result later
+    //     if let Some(entry_pos) = shader.find(entry_point) {
+    //         shader.replace(from, to)
+    //     }
+    //     None
+    // }
     pub fn create_buffer<T: ShaderType + WriteInto>(
         &self,
         label: Option<&str>,
@@ -128,7 +140,7 @@ impl Device {
         &self,
         buffers: &Vec<Vec<&mut Buffer<'_>>>,
         shader_module: ShaderModule,
-        workgroup_dimensions: (u32, u32, u32),
+        dispatch_dimensions: (u32, u32, u32),
     ) {
         let (bind_group_layouts, bind_groups): (Vec<_>, Vec<_>) = buffers
             .iter()
@@ -206,9 +218,9 @@ impl Device {
                 compute_pass.set_bind_group(idx as u32, bind_group, &[]);
             }
             compute_pass.dispatch_workgroups(
-                workgroup_dimensions.0,
-                workgroup_dimensions.1,
-                workgroup_dimensions.2,
+                dispatch_dimensions.0,
+                dispatch_dimensions.1,
+                dispatch_dimensions.2,
             );
         }
         if let Some(max_output_buffer_size) = buffers
@@ -235,9 +247,9 @@ impl Device {
         &self,
         buffers: &Vec<Vec<&mut Buffer<'_>>>,
         shader_module: ShaderModule,
-        workgroup_dimensions: (u32, u32, u32),
+        dispatch_dimensions: (u32, u32, u32),
     ) {
-        pollster::block_on(self.execute_async(buffers, shader_module, workgroup_dimensions));
+        pollster::block_on(self.execute_async(buffers, shader_module, dispatch_dimensions));
         self.device().poll(wgpu::MaintainBase::Wait);
     }
     pub fn block_until_complete(&self) {
