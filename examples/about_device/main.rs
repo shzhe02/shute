@@ -1,7 +1,14 @@
-use shute::{Instance, PowerPreference};
+use shute::{Device, Instance, LimitType, PowerPreference};
 
 async fn check() {
     let instance = Instance::new();
+    println!("All devices:");
+    for adapter in instance.devices() {
+        let device = Device::from_adapter(adapter, LimitType::Highest)
+            .await
+            .unwrap();
+        println!("{:#?}", device.info());
+    }
     let performance_device = instance
         .autoselect(PowerPreference::HighPerformance, shute::LimitType::Highest)
         .await
