@@ -41,7 +41,7 @@ async fn compute(data: &mut Vec<f32>, dim: u32) {
     let groups: Vec<Vec<&mut Buffer>> =
         vec![vec![&mut input_buffer, &mut output_buffer, &mut dim_buffer]];
     let shader = device.create_shader_module(include_str!("shortcut.wgsl"), "main");
-    device.execute_blocking(&groups, shader, (dim.div_ceil(16), dim.div_ceil(16), 1));
+    device.execute_blocking(&groups, shader, [dim.div_ceil(16), dim.div_ceil(16)]);
     output_buffer.fetch_data_from_device(data).await;
 }
 // V1 cpu compute, parallel (sort of)

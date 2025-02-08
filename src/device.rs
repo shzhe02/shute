@@ -23,6 +23,51 @@ pub enum LimitType {
     Downlevel,
 }
 
+mod private {
+    pub trait Sealed {}
+}
+
+pub trait Dimensions: private::Sealed {
+    fn x(&self) -> u32 {
+        1
+    }
+    fn y(&self) -> u32 {
+        1
+    }
+    fn z(&self) -> u32 {
+        1
+    }
+}
+
+impl private::Sealed for [u32; 1] {}
+impl private::Sealed for [u32; 2] {}
+impl private::Sealed for [u32; 3] {}
+
+impl Dimensions for [u32; 1] {
+    fn x(&self) -> u32 {
+        self[0]
+    }
+}
+impl Dimensions for [u32; 2] {
+    fn x(&self) -> u32 {
+        self[0]
+    }
+    fn y(&self) -> u32 {
+        self[1]
+    }
+}
+impl Dimensions for [u32; 3] {
+    fn x(&self) -> u32 {
+        self[0]
+    }
+    fn y(&self) -> u32 {
+        self[1]
+    }
+    fn z(&self) -> u32 {
+        self[2]
+    }
+}
+
 impl Device {
     pub async fn from_adapter(
         adapter: wgpu::Adapter,
@@ -82,27 +127,40 @@ impl Device {
             entry_point,
         )
     }
-    pub fn create_shader_module_with_workgroup_size(
+    pub fn create_shader_module_with_workgroup_size<const N: usize>(
         &self,
         shader: &str,
         entry_point: &str,
-        workgroup_dimensions: (u32, u32, u32),
-    ) -> Option<ShaderModule> {
+        workgroup_dimensions: [u32; N],
+    ) -> Option<ShaderModule>
+    where
+        [u32; N]: Dimensions,
+    {
         // FIXME: change option to result later
         //
         // FIXME: this is also some terrible string manipulation. Find a better pure-regex alternative.
         let mut modified_shader = shader.to_string();
         let mut modified = false;
         if let Some(entry_pos) = shader.find(&("fn ".to_string() + entry_point)) {
-            let workgroup_size_pattern =
-                Regex::new(r"@workgroup_size\(([0-9]+,\s*)*[0-9]+\)").unwrap();
+            let workgroup_size_pattern = Regex::new(r"@workgroup_size\(.*?\)").unwrap();
             let matches = workgroup_size_pattern.find_iter(shader);
             if let Some(found) = matches.filter(|hit| hit.end() < entry_pos).last() {
                 let found = found.start();
-                let new_workgroup_size = format!(
-                    "@workgroup_size({}, {}, {})",
-                    workgroup_dimensions.0, workgroup_dimensions.1, workgroup_dimensions.2
-                );
+                let new_workgroup_size = match N {
+                    1 => format!("@workgroup_size({})", workgroup_dimensions.x()),
+                    2 => format!(
+                        "@workgroup_size({}, {})",
+                        workgroup_dimensions.x(),
+                        workgroup_dimensions.y()
+                    ),
+                    3 => format!(
+                        "@workgroup_size({}, {}, {})",
+                        workgroup_dimensions.x(),
+                        workgroup_dimensions.y(),
+                        workgroup_dimensions.z()
+                    ),
+                    _ => unreachable!(),
+                };
                 modified_shader.replace_range(found..entry_pos, &new_workgroup_size);
                 modified = true;
             }
@@ -155,12 +213,14 @@ impl Device {
         });
         self.staging_buffer.replace(Some(staging_buffer));
     }
-    pub async fn execute_async(
+    pub async fn execute_async<const N: usize>(
         &self,
         buffers: &Vec<Vec<&mut Buffer<'_>>>,
         shader_module: ShaderModule,
-        dispatch_dimensions: (u32, u32, u32),
-    ) {
+        dispatch_dimensions: [u32; N],
+    ) where
+        [u32; N]: Dimensions,
+    {
         let (bind_group_layouts, bind_groups): (Vec<_>, Vec<_>) = buffers
             .iter()
             .map(|group| {
@@ -237,9 +297,9 @@ impl Device {
                 compute_pass.set_bind_group(idx as u32, bind_group, &[]);
             }
             compute_pass.dispatch_workgroups(
-                dispatch_dimensions.0,
-                dispatch_dimensions.1,
-                dispatch_dimensions.2,
+                dispatch_dimensions.x(),
+                dispatch_dimensions.y(),
+                dispatch_dimensions.z(),
             );
         }
         if let Some(max_output_buffer_size) = buffers
@@ -262,12 +322,14 @@ impl Device {
         }
         self.queue.submit(Some(encoder.finish()));
     }
-    pub fn execute_blocking(
+    pub fn execute_blocking<const N: usize>(
         &self,
         buffers: &Vec<Vec<&mut Buffer<'_>>>,
         shader_module: ShaderModule,
-        dispatch_dimensions: (u32, u32, u32),
-    ) {
+        dispatch_dimensions: [u32; N],
+    ) where
+        [u32; N]: Dimensions,
+    {
         pollster::block_on(self.execute_async(buffers, shader_module, dispatch_dimensions));
         self.device().poll(wgpu::MaintainBase::Wait);
     }
