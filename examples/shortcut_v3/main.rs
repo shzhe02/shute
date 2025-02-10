@@ -60,9 +60,9 @@ fn compute(data: &mut Vec<f32>, dim: u32) {
         &mut param_buffer,
     ]];
     let padding_shader = device.create_shader_module(include_str!("padding.wgsl"), "main");
-    device.execute_blocking(&groups, padding_shader, [1, nn]);
+    device.execute(&groups, padding_shader, [1, nn]);
     let shader = device.create_shader_module(include_str!("shortcut.wgsl"), "main");
-    device.execute_blocking(&groups, shader, [nn / 64, nn / 64]);
+    device.execute(&groups, shader, [nn / 64, nn / 64]);
     pollster::block_on(output_buffer.fetch_data_from_device(data));
 }
 

@@ -15,6 +15,7 @@ pub struct Device {
     queue: wgpu::Queue,
     limits: Limits,
     staging_buffer: RefCell<Option<wgpu::Buffer>>,
+    staging_size: RefCell<Option<u32>>,
 }
 
 pub enum LimitType {
@@ -95,6 +96,7 @@ impl Device {
             queue,
             limits: Limits::from_wgpu_limits(limits),
             staging_buffer: None.into(),
+            staging_size: None.into(),
         })
     }
     pub fn new(
@@ -109,6 +111,7 @@ impl Device {
             queue,
             limits: Limits::from_wgpu_limits(limits),
             staging_buffer: None.into(),
+            staging_size: None.into(),
         }
     }
     pub fn limits(&self) -> &Limits {
@@ -212,8 +215,9 @@ impl Device {
             mapped_at_creation: false,
         });
         self.staging_buffer.replace(Some(staging_buffer));
+        self.staging_size.replace(Some(size));
     }
-    pub async fn execute_async<const N: usize>(
+    pub fn execute<const N: usize>(
         &self,
         buffers: &Vec<Vec<&mut Buffer<'_>>>,
         shader_module: ShaderModule,
@@ -309,7 +313,11 @@ impl Device {
             .map(|buffer| buffer.size())
             .max()
         {
-            self.override_staging(max_output_buffer_size);
+            if let Some(staging_size) = self.staging_size.borrow().as_ref() {
+                if *staging_size < max_output_buffer_size {
+                    self.override_staging(max_output_buffer_size);
+                }
+            }
         }
         self.queue.submit(Some(encoder.finish()));
     }
@@ -322,18 +330,7 @@ impl Device {
         }
         self.queue.submit(Some(encoder.finish()));
     }
-    pub fn execute_blocking<const N: usize>(
-        &self,
-        buffers: &Vec<Vec<&mut Buffer<'_>>>,
-        shader_module: ShaderModule,
-        dispatch_dimensions: [u32; N],
-    ) where
-        [u32; N]: Dimensions,
-    {
-        pollster::block_on(self.execute_async(buffers, shader_module, dispatch_dimensions));
-        self.device().poll(wgpu::MaintainBase::Wait);
-    }
-    pub fn block_until_complete(&self) {
+    pub fn synchronize(&self) {
         self.device.poll(wgpu::Maintain::Wait);
     }
 }
