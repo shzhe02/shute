@@ -2,6 +2,7 @@ use std::cell::RefCell;
 
 use encase::{internal::WriteInto, ShaderType, StorageBuffer, UniformBuffer};
 use regex::Regex;
+use wgpu::ShaderModuleDescriptor;
 
 use crate::{
     buffer::{Buffer, BufferContents, BufferInit, BufferType},
@@ -123,6 +124,16 @@ impl Device {
                 .create_shader_module(wgpu::ShaderModuleDescriptor {
                     label: None,
                     source: wgpu::ShaderSource::Wgsl(shader.into()),
+                }),
+            entry_point,
+        )
+    }
+    pub fn create_spirv_shader_module(&self, shader: &[u32], entry_point: &str) -> ShaderModule {
+        ShaderModule::new(
+            self.device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: None,
+                    source: wgpu::ShaderSource::SpirV(shader.into()),
                 }),
             entry_point,
         )
