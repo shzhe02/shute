@@ -61,11 +61,16 @@ fn compute(data: &mut Vec<f32>, dim: u32) {
         &mut param_buffer,
     ]];
     // let padding_shader = device.create_shader_module(include_str!("padding.wgsl"), "main");
+    use std::time::Instant;
+    let now = Instant::now();
     let padding_shader =
         device.create_spirv_shader_module(include_spirv!("padding-opt.spv"), "main");
+    println!("Created padding shader module in {:?}", now.elapsed());
     device.execute_blocking(&groups, padding_shader, [1, nn]);
     // let shader = device.create_shader_module(include_str!("shortcut.wgsl"), "main");
+    let now = Instant::now();
     let shader = device.create_spirv_shader_module(include_spirv!("shortcut-opt.spv"), "main");
+    println!("Created shortcut shader module in {:?}", now.elapsed());
     device.execute_blocking(&groups, shader, [nn / 64, nn / 64]);
     pollster::block_on(output_buffer.fetch_data_from_device(data));
 }
