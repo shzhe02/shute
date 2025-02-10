@@ -1,5 +1,6 @@
 use rand::Rng;
 use shute::{Buffer, BufferInit, BufferType, Instance, LimitType, PowerPreference, ShaderType};
+use wgpu::include_spirv;
 
 fn generate_data(dim: usize) -> Vec<f32> {
     let mut rng = rand::thread_rng();
@@ -59,9 +60,12 @@ fn compute(data: &mut Vec<f32>, dim: u32) {
         &mut output_buffer,
         &mut param_buffer,
     ]];
-    let padding_shader = device.create_shader_module(include_str!("padding.wgsl"), "main");
+    // let padding_shader = device.create_shader_module(include_str!("padding.wgsl"), "main");
+    let padding_shader =
+        device.create_spirv_shader_module(include_spirv!("padding-opt.spv"), "main");
     device.execute_blocking(&groups, padding_shader, [1, nn]);
-    let shader = device.create_shader_module(include_str!("shortcut.wgsl"), "main");
+    // let shader = device.create_shader_module(include_str!("shortcut.wgsl"), "main");
+    let shader = device.create_spirv_shader_module(include_spirv!("shortcut-opt.spv"), "main");
     device.execute_blocking(&groups, shader, [nn / 64, nn / 64]);
     pollster::block_on(output_buffer.fetch_data_from_device(data));
 }
