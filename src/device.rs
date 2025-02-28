@@ -132,26 +132,6 @@ impl Device {
             staging_size: None.into(),
         })
     }
-    // FIXME: This seems to never be used internally...?
-    /// Creates a new device.
-    ///
-    /// Preferably, use the `Instance::autoselect` or converting an adapter from `Instance::devices`
-    /// into a device with `Device::from_adapter`.
-    pub(crate) fn new(
-        device: wgpu::Device,
-        queue: wgpu::Queue,
-        limits: wgpu::Limits,
-        adapter: wgpu::Adapter,
-    ) -> Self {
-        Self {
-            adapter,
-            device,
-            queue,
-            limits: Limits::from_wgpu_limits(limits),
-            staging_buffer: None.into(),
-            staging_size: None.into(),
-        }
-    }
     /// Gets the limits of the device.
     pub fn limits(&self) -> &Limits {
         &self.limits
@@ -257,9 +237,8 @@ impl Device {
     pub(crate) fn queue(&self) -> &wgpu::Queue {
         &self.queue
     }
-    // TODO: rename to override_staging_size, as current wording suggests data manipulation.
     /// Overrides the size of the staging buffer.
-    pub fn override_staging(&self, size: u32) {
+    pub fn override_staging_size(&self, size: u32) {
         let staging_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("shute staging buffer"),
             size: size as u64,
@@ -368,15 +347,14 @@ impl Device {
         {
             if let Some(staging_size) = self.staging_size.borrow().as_ref() {
                 if *staging_size < max_output_buffer_size {
-                    self.override_staging(max_output_buffer_size);
+                    self.override_staging_size(max_output_buffer_size);
                 }
             }
         }
         self.queue.submit(Some(encoder.finish()));
     }
-    // TODO: Rename to something like "copy_to_staging_buffer" or similar.
     /// Copies the data from a GPU-mapped buffer to the staging buffer.
-    pub fn stage_output(&self, buffer: &Buffer) {
+    pub(crate) fn copy_to_staging(&self, buffer: &Buffer) {
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });

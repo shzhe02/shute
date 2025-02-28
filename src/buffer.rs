@@ -132,9 +132,8 @@ impl<'a> Buffer<'a> {
     pub(crate) fn buffer(&self) -> &wgpu::Buffer {
         &self.buffer
     }
-    // TODO: This should be "write_buffer" or similar.
     /// Write data to the buffer.
-    pub fn send_data_to_device<T>(&self, data: &T)
+    pub fn write<T>(&self, data: &T)
     where
         T: ShaderType + WriteInto,
     {
@@ -154,17 +153,16 @@ impl<'a> Buffer<'a> {
         self.device.queue().write_buffer(&self.buffer, 0, &data);
         self.device.queue().submit([]);
     }
-    // TODO: Make this "read_buffer" or similar.
-    /// Get the data from the buffer. This makes the buffer temporarily accessible
+    /// Read the data in the buffer. This makes the buffer temporarily accessible
     /// to the CPU to write the buffer contents to the output mutable reference.
-    pub async fn fetch_data_from_device<T>(&self, output: &mut T)
+    pub async fn read<T>(&self, output: &mut T)
     where
         T: ShaderType + ReadFrom,
     {
         if !self.output() {
             return;
         }
-        self.device.stage_output(self);
+        self.device.copy_to_staging(self);
 
         // TODO: Return an error if the output is not large enough to hold the buffer's data.
         let staging = self.device.staging().borrow();
