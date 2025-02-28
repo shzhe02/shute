@@ -1,20 +1,32 @@
 use encase::{
-    internal::{ReadFrom, WriteInto},
     ShaderType, StorageBuffer, UniformBuffer,
+    internal::{ReadFrom, WriteInto},
 };
 use wgpu::{
-    util::{BufferInitDescriptor, DeviceExt},
     BindingResource, BufferDescriptor,
+    util::{BufferInitDescriptor, DeviceExt},
 };
 
 use crate::Device;
 
+/// Specifies buffer type.
 #[derive(Clone, Copy)]
 pub enum BufferType {
-    StorageBuffer { output: bool, read_only: bool },
+    /// A storage buffer. Usually used for holding large data types like vectors.
+    /// Storage buffers are also the only buffer type that can be mutable.
+    StorageBuffer {
+        /// Denotes if the buffer should be accessible by the CPU after being used by the GPU.
+        output: bool,
+        /// Denotes if the buffer is read-only or mutable on the GPU side.
+        read_only: bool,
+    },
+    /// A uniform buffer. Usually used for holding read-only data like constant parameters.
     UniformBuffer,
 }
 
+/// A buffer for sharing data between the CPU and GPU.
+///
+/// Create a buffer using the `Device::create_buffer` method.
 pub struct Buffer<'a> {
     device: &'a Device,
     buffer_type: BufferType,
@@ -23,11 +35,14 @@ pub struct Buffer<'a> {
     // staging: Option<wgpu::Buffer>,
 }
 
+/// Specifies how a buffer is initialized.
 pub enum BufferInit<T>
 where
     T: ShaderType + WriteInto,
 {
+    /// Initialize a buffer with a fixed size.
     WithSize(usize),
+    /// Initialize a buffer with initial data.
     WithData(T),
 }
 
@@ -46,7 +61,9 @@ impl BufferContents {
 }
 
 impl<'a> Buffer<'a> {
-    pub fn new(
+    /// Used to create a new buffer. However, this method is sealed.
+    /// Use `Device::create_buffer` instead.
+    pub(crate) fn new(
         label: Option<&str>,
         device: &'a Device,
         buffer_type: BufferType,
@@ -97,33 +114,43 @@ impl<'a> Buffer<'a> {
             // },
         }
     }
+    /// Get the size of the buffer (in bytes).
     pub fn size(&self) -> u32 {
         self.contents.size()
     }
+    /// Check if the buffer is an output buffer (i.e., readable from the CPU
+    /// after being used by the GPU) or not.
     pub fn output(&self) -> bool {
         matches!(
             self.buffer_type,
             BufferType::StorageBuffer { output: true, .. }
         )
     }
+    /// Get a reference to the data stored in the buffer (as bytes).
     pub fn data(&self) -> Option<&Vec<u8>> {
         match &self.contents {
             BufferContents::Size(_) => None,
             BufferContents::Data(data) => Some(data),
         }
     }
+    /// Get the type of the buffer.
     pub fn buffer_type(&self) -> BufferType {
         self.buffer_type
     }
-    pub fn as_entire_binding(&self) -> BindingResource<'_> {
+    /// Note: This method is meant to be used only within the crate.
+    ///
+    /// Return the binding view of the entire buffer.
+    pub(crate) fn as_entire_binding(&self) -> BindingResource<'_> {
         self.buffer.as_entire_binding()
     }
-    pub fn buffer(&self) -> &wgpu::Buffer {
+    pub(crate) fn buffer(&self) -> &wgpu::Buffer {
         &self.buffer
     }
     // pub fn staging(&self) -> &Option<wgpu::Buffer> {
     //     &self.staging
     // }
+    // TODO: This should be "write_buffer" or similar.
+    /// Write data to the buffer.
     pub fn send_data_to_device<T>(&self, data: &T)
     where
         T: ShaderType + WriteInto,
@@ -144,6 +171,9 @@ impl<'a> Buffer<'a> {
         self.device.queue().write_buffer(&self.buffer, 0, &data);
         self.device.queue().submit([]);
     }
+    // TODO: Make this "read_buffer" or similar.
+    /// Get the data from the buffer. This makes the buffer temporarily accessible
+    /// to the CPU to write the buffer contents to the output mutable reference.
     pub async fn fetch_data_from_device<T>(&self, output: &mut T)
     where
         T: ShaderType + ReadFrom,

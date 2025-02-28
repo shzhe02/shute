@@ -1,14 +1,16 @@
 use std::cell::RefCell;
 
-use encase::{internal::WriteInto, ShaderType, StorageBuffer, UniformBuffer};
+use encase::{ShaderType, StorageBuffer, UniformBuffer, internal::WriteInto};
 use regex::Regex;
 
 use crate::{
+    Limits,
     buffer::{Buffer, BufferContents, BufferInit, BufferType},
     types::ShaderModule,
-    Limits,
 };
 
+// TODO: Improve explanation.
+/// A GPU.
 pub struct Device {
     adapter: wgpu::Adapter,
     device: wgpu::Device,
@@ -18,9 +20,29 @@ pub struct Device {
     staging_size: RefCell<Option<u32>>,
 }
 
+/// Describes the limits imposed on the device.
+///
+/// These limits are mostly derived from those
+/// in [wgpu](https://docs.rs/wgpu/latest/wgpu/struct.Limits.html#).
+/// However, the [`downlevel_webgl2_defaults`](https://docs.rs/wgpu/latest/wgpu/struct.Limits.html#method.downlevel_webgl2_defaults) default is unsupported in this library as that set
+/// of limits does not allow for any compute shaders to be used
+/// (note how all compute workgroup dimensions there are limited to 0).
+///
+/// Picking `Default` or `Downlevel` limits may be a good idea if you want to ensure
+/// compatibility with most devices, especially if you are using constant values for workgroup or
+/// dispatch dimensions.
 pub enum LimitType {
+    /// Sets the limits such that they are as high as the device allows.
     Highest,
+    /// Sets the limits to the [wgpu default limits](https://docs.rs/wgpu/latest/wgpu/struct.Limits.html#method.default).
+    ///
+    /// According to the documentation there:
+    /// > This is the set of limits that is guaranteed to work on all modern backends
+    /// > and is guaranteed to be supported by WebGPU. Applications needing more
+    /// > modern features can use this as a reasonable set of limits if they are
+    /// > targeting only desktop and modern mobile devices.
     Default,
+    /// Sets the limits to the [`downlevel_defaults`](https://docs.rs/wgpu/latest/wgpu/struct.Limits.html#method.downlevel_defaults) default in wgpu.
     Downlevel,
 }
 
@@ -70,6 +92,9 @@ impl Dimensions for [u32; 3] {
 }
 
 impl Device {
+    // TODO: Ideally abstract away the need of the adapter altogether.
+    // If that isn't feasible, then convert this into a From<> implementation.
+    /// Creates a device from a wgpu::Adapter.
     pub async fn from_adapter(
         adapter: wgpu::Adapter,
         limit_type: LimitType,
@@ -99,7 +124,12 @@ impl Device {
             staging_size: None.into(),
         })
     }
-    pub fn new(
+    // FIXME: This seems to never be used internally...?
+    /// Creates a new device.
+    ///
+    /// Preferably, use the `Instance::autoselect` or converting an adapter from `Instance::devices`
+    /// into a device with `Device::from_adapter`.
+    pub(crate) fn new(
         device: wgpu::Device,
         queue: wgpu::Queue,
         limits: wgpu::Limits,
@@ -114,12 +144,17 @@ impl Device {
             staging_size: None.into(),
         }
     }
+    /// Gets the limits of the device.
     pub fn limits(&self) -> &Limits {
         &self.limits
     }
+    // TODO: Maybe alias AdapterInfo too so downstream devs don't need to pull it from wgpu?
+    /// Gets the device's information.
     pub fn info(&self) -> wgpu::AdapterInfo {
         self.adapter.get_info()
     }
+    // TODO: Allow for other shader sources too, such as SPIR-V and GLSL.
+    /// Creates a compute shader module. Will panic if there are errors in the compute shader.
     pub fn create_shader_module(&self, shader: &str, entry_point: &str) -> ShaderModule {
         ShaderModule::new(
             self.device
@@ -130,6 +165,8 @@ impl Device {
             entry_point,
         )
     }
+    /// Creates a compute shader module, but override the workgroup size of the entry point function
+    /// in the compute shader at runtime.
     pub fn create_shader_module_with_workgroup_size<const N: usize>(
         &self,
         shader: &str,
@@ -173,6 +210,7 @@ impl Device {
         }
         Some(self.create_shader_module(&modified_shader, entry_point))
     }
+    /// Creates a buffer.
     pub fn create_buffer<T: ShaderType + WriteInto>(
         &self,
         label: Option<&str>,
@@ -198,15 +236,21 @@ impl Device {
         if let BufferType::StorageBuffer { output: true, .. } = buffer_type {}
         buffer
     }
-    pub fn staging(&self) -> &RefCell<Option<wgpu::Buffer>> {
+    /// Gets the staging buffer of the device, which is necessary for getting data back
+    /// from the GPU.
+    pub(crate) fn staging(&self) -> &RefCell<Option<wgpu::Buffer>> {
         &self.staging_buffer
     }
-    pub fn device(&self) -> &wgpu::Device {
+    /// Gets the device as a wgpu device.
+    pub(crate) fn device(&self) -> &wgpu::Device {
         &self.device
     }
-    pub fn queue(&self) -> &wgpu::Queue {
+    /// Gets the queue of the device.
+    pub(crate) fn queue(&self) -> &wgpu::Queue {
         &self.queue
     }
+    // TODO: rename to override_staging_size, as current wording suggests data manipulation.
+    /// Overrides the size of the staging buffer.
     pub fn override_staging(&self, size: u32) {
         let staging_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("shute staging buffer"),
@@ -217,6 +261,7 @@ impl Device {
         self.staging_buffer.replace(Some(staging_buffer));
         self.staging_size.replace(Some(size));
     }
+    /// Executes a compute shader with the given buffers and dispatch dimensions.
     pub fn execute<const N: usize>(
         &self,
         buffers: &Vec<Vec<&mut Buffer<'_>>>,
@@ -321,6 +366,8 @@ impl Device {
         }
         self.queue.submit(Some(encoder.finish()));
     }
+    // TODO: Rename to something like "copy_to_staging_buffer" or similar.
+    /// Copies the data from a GPU-mapped buffer to the staging buffer.
     pub fn stage_output(&self, buffer: &Buffer) {
         let mut encoder = self
             .device
@@ -330,6 +377,8 @@ impl Device {
         }
         self.queue.submit(Some(encoder.finish()));
     }
+    /// Waits until the GPU queue is empty. That is, this method blocks further execution on the
+    /// CPU side until the GPU is done doing all work given to it.
     pub fn synchronize(&self) {
         self.device.poll(wgpu::Maintain::Wait);
     }
