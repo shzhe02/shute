@@ -101,9 +101,8 @@ impl Dimensions for [u32; 3] {
 }
 
 impl Device {
-    // TODO: Convert into From<> implementation
-    /// Creates a device from a wgpu::Adapter.
-    pub(crate) async fn from_adapter(
+    /// Creates a Shute device.
+    pub(crate) async fn new(
         adapter: wgpu::Adapter,
         limit_type: LimitType,
     ) -> Result<Device, wgpu::RequestDeviceError> {
@@ -127,7 +126,7 @@ impl Device {
             adapter,
             device,
             queue,
-            limits: Limits::from_wgpu_limits(limits),
+            limits: Limits::from(limits),
             staging_buffer: None.into(),
             staging_size: None.into(),
         })

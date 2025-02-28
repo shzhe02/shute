@@ -36,9 +36,7 @@ impl Instance {
             .enumerate_adapters(wgpu::Backends::all())
             .into_iter()
             .filter(|adapter| adapter.get_info().device_type != wgpu::DeviceType::Other)
-            .map(|adapter| {
-                pollster::block_on(Device::from_adapter(adapter, LimitType::Highest)).unwrap()
-            })
+            .map(|adapter| pollster::block_on(Device::new(adapter, LimitType::Highest)).unwrap())
             .collect()
     }
     /// Automatically select a device (like a GPU) based on a power preference.
@@ -58,7 +56,7 @@ impl Instance {
             })
             .await
             .unwrap();
-        Device::from_adapter(adapter, limit_type).await
+        Device::new(adapter, limit_type).await
     }
 }
 

@@ -95,9 +95,8 @@ pub struct Limits {
     pub max_subgroup_size: u32,
 }
 
-impl Limits {
-    // TODO: convert this into a From<> trait implementation.
-    pub(crate) fn from_wgpu_limits(limits: wgpu::Limits) -> Self {
+impl From<wgpu::Limits> for Limits {
+    fn from(limits: wgpu::Limits) -> Self {
         Self {
             max_bind_groups: limits.max_bind_groups,
             max_bindings_per_bind_group: limits.max_bindings_per_bind_group,
