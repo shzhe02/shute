@@ -1,6 +1,6 @@
 use crate::{
     device::{Device, LimitType},
-    types::{Adapter, PowerPreference},
+    types::PowerPreference,
 };
 
 /// Context for all other Shute objects.
@@ -29,13 +29,19 @@ impl Instance {
             }),
         }
     }
-    /// Get all available adapters (physical devices) on the system.
-    /// After selecting an adapter, use the `Device::from_adapter` method to get a `Device`.
+    /// Get all available devices on the system.
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn devices(&self) -> Vec<Adapter> {
-        self.instance.enumerate_adapters(wgpu::Backends::all())
+    pub fn devices(&self) -> Vec<Device> {
+        self.instance
+            .enumerate_adapters(wgpu::Backends::all())
+            .into_iter()
+            .filter(|adapter| adapter.get_info().device_type != wgpu::DeviceType::Other)
+            .map(|adapter| {
+                pollster::block_on(Device::from_adapter(adapter, LimitType::Highest)).unwrap()
+            })
+            .collect()
     }
-    /// Automatically select a device (GPU) based on a power preference.
+    /// Automatically select a device (like a GPU) based on a power preference.
     /// The `limit_type` parameter will denote how the limits of the device are set.
     /// See [LimitType] for more information about that.
     pub async fn autoselect(

@@ -9,7 +9,8 @@ use crate::{
     types::ShaderModule,
 };
 
-/// Effectively a reference to a GPU.
+/// Effectively a reference to a GPU. Obtain a device by using `Instance::autoselect`
+/// or `Instance::devices`.
 pub struct Device {
     adapter: wgpu::Adapter,
     device: wgpu::Device,
@@ -100,10 +101,9 @@ impl Dimensions for [u32; 3] {
 }
 
 impl Device {
-    // TODO: Ideally abstract away the need of the adapter altogether.
-    // If that isn't feasible, then convert this into a From<> implementation.
+    // TODO: Convert into From<> implementation
     /// Creates a device from a wgpu::Adapter.
-    pub async fn from_adapter(
+    pub(crate) async fn from_adapter(
         adapter: wgpu::Adapter,
         limit_type: LimitType,
     ) -> Result<Device, wgpu::RequestDeviceError> {

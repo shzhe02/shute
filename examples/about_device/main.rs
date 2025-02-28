@@ -1,17 +1,15 @@
 //! Quick example for seeing what devices are returned through the `Instance::autoselect` method
-//! with all three power preferences, as well as all the adapters returned through `Instance::devices`.
+//! with all three power preferences, as well as all the devices returned through `Instance::devices`.
 
-use shute::{Device, Instance, LimitType, PowerPreference};
+use shute::{Instance, PowerPreference};
 
 async fn check() {
     let instance = Instance::new();
     println!("All devices:");
-    for adapter in instance.devices() {
-        let device = Device::from_adapter(adapter, LimitType::Highest)
-            .await
-            .unwrap();
+    for device in instance.devices() {
         println!("{:#?}", device.info());
     }
+    println!("=====");
     let performance_device = instance
         .autoselect(PowerPreference::HighPerformance, shute::LimitType::Highest)
         .await
@@ -20,6 +18,7 @@ async fn check() {
         "Autoselected Device (Performance): {:#?}",
         performance_device.info()
     );
+    println!("=====");
     let lowpower_device = instance
         .autoselect(PowerPreference::LowPower, shute::LimitType::Highest)
         .await
@@ -28,6 +27,7 @@ async fn check() {
         "Autoselected Device (Low Power): {:#?}",
         lowpower_device.info()
     );
+    println!("=====");
     let no_preference_device = instance
         .autoselect(PowerPreference::None, shute::LimitType::Highest)
         .await
