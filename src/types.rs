@@ -24,10 +24,8 @@ impl ShaderModule {
             entry_point: entry_point.to_string(),
         }
     }
-    // TODO: think about if this is really needs to be accessible by
-    // downstream crates.
     /// Get just the shader module (without entry point).
-    pub fn module(&self) -> &wgpu::ShaderModule {
+    pub(crate) fn module(&self) -> &wgpu::ShaderModule {
         &self.module
     }
     /// Get the entry point of the compute shader.
