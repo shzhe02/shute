@@ -2,11 +2,12 @@
 ///
 /// Power preference when autoselecting a device with `Instance::autoselect`.
 pub type PowerPreference = wgpu::PowerPreference;
-// TODO: would be great to get rid of this entirely.
-/// Alias of [`wgpu::Adapter`](https://docs.rs/wgpu/latest/wgpu/struct.Adapter.html).
+
+/// Alias of [`wgpu::AdapterInfo`](https://docs.rs/wgpu/latest/wgpu/struct.AdapterInfo.html).
 ///
-/// Use with `Device::from_adapter` to get a device.
-pub type Adapter = wgpu::Adapter;
+/// Contains information about a device.
+pub type DeviceInfo = wgpu::AdapterInfo;
+
 /// A compute shader module. Used in `Device::execute`.
 pub struct ShaderModule {
     module: wgpu::ShaderModule,

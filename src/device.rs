@@ -4,7 +4,7 @@ use encase::{ShaderType, StorageBuffer, UniformBuffer, internal::WriteInto};
 use regex::Regex;
 
 use crate::{
-    Limits,
+    DeviceInfo, Limits,
     buffer::{Buffer, BufferContents, BufferInit, BufferType},
     types::ShaderModule,
 };
@@ -136,9 +136,8 @@ impl Device {
     pub fn limits(&self) -> &Limits {
         &self.limits
     }
-    // TODO: Maybe alias AdapterInfo too so downstream devs don't need to pull it from wgpu?
     /// Gets the device's information.
-    pub fn info(&self) -> wgpu::AdapterInfo {
+    pub fn info(&self) -> DeviceInfo {
         self.adapter.get_info()
     }
     // TODO: Allow for other shader sources too, such as SPIR-V and GLSL.
