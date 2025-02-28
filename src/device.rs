@@ -9,8 +9,7 @@ use crate::{
     types::ShaderModule,
 };
 
-// TODO: Improve explanation.
-/// A GPU.
+/// Effectively a reference to a GPU.
 pub struct Device {
     adapter: wgpu::Adapter,
     device: wgpu::Device,
@@ -50,6 +49,15 @@ mod private {
     pub trait Sealed {}
 }
 
+/// A sealed trait for denoting 3D dimensions.
+///
+/// This allows for dimension specifications similar to that available in WGSL and CUDA,
+/// forcing other dimensions to be set to 1 if not given. If there is only one element in the slice,
+/// it is assumed to be the x dimension. If two elements are in the slice, it is assumed that the
+/// first and second elements are the x and y dimensions respectively. If all three are given,
+/// then the first, second, and third elements are x, y, and z respectively.
+///
+/// Only slices of length 1, 2, and 3 are allowed.
 pub trait Dimensions: private::Sealed {
     fn x(&self) -> u32 {
         1
