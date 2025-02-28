@@ -348,7 +348,11 @@ impl Device {
             if let Some(staging_size) = self.staging_size.borrow().as_ref() {
                 if *staging_size < max_output_buffer_size {
                     self.override_staging_size(max_output_buffer_size);
+                    self.staging_size.replace(Some(max_output_buffer_size));
                 }
+            } else {
+                self.override_staging_size(max_output_buffer_size);
+                self.staging_size.replace(Some(max_output_buffer_size));
             }
         }
         self.queue.submit(Some(encoder.finish()));
