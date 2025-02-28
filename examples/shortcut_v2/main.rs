@@ -69,7 +69,7 @@ fn compute(data: &mut Vec<f32>, dim: u32) {
     device.execute(&groups, padding_shader, [1, nn]);
     let shader = device.create_shader_module(include_str!("shortcut.wgsl"), "main");
     device.execute(&groups, shader, [nn / 64, nn / 64]);
-    pollster::block_on(output_buffer.read(data));
+    pollster::block_on(output_buffer.read(data)).expect("Failed to fetch data from output buffer");
 }
 
 // V1 cpu compute, parallel (sort of)

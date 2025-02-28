@@ -57,7 +57,8 @@ fn compute(data: &Vec<i32>) -> i32 {
         buffer_b.read(&mut output)
     } else {
         buffer_a.read(&mut output)
-    });
+    })
+    .expect("Failed to fetch data from output buffer");
     output[0]
 }
 

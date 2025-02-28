@@ -7,7 +7,9 @@ async fn check() {
     let instance = Instance::new();
     println!("All devices:");
     for device in instance.devices() {
-        println!("{:#?}", device.info());
+        if let Ok(device) = device {
+            println!("{:#?}", device.info());
+        }
     }
     println!("=====");
     let performance_device = instance

@@ -2,6 +2,7 @@ use std::cell::RefCell;
 
 use encase::{ShaderType, StorageBuffer, UniformBuffer, internal::WriteInto};
 use regex::Regex;
+use thiserror::Error;
 
 use crate::{
     DeviceInfo, Limits,
@@ -18,6 +19,16 @@ pub struct Device {
     limits: Limits,
     staging_buffer: RefCell<Option<wgpu::Buffer>>,
     staging_size: RefCell<Option<u32>>,
+}
+
+#[derive(Error, Debug)]
+pub enum DeviceError {
+    #[error("Could not create device as it could not be requested from the adapter: {0}")]
+    CreationError(wgpu::RequestDeviceError),
+    #[error("Found no devices")]
+    DeviceNotFound,
+    #[error("Could not find the workgroup dimensions in the compute shader")]
+    ShaderWorkgroupSizeNotFound,
 }
 
 /// Describes the limits imposed on the device.
@@ -105,7 +116,7 @@ impl Device {
     pub(crate) async fn new(
         adapter: wgpu::Adapter,
         limit_type: LimitType,
-    ) -> Result<Device, wgpu::RequestDeviceError> {
+    ) -> Result<Device, DeviceError> {
         let limits = match limit_type {
             LimitType::Highest => adapter.limits(),
             LimitType::Default => wgpu::Limits::default(),
@@ -121,7 +132,8 @@ impl Device {
                 },
                 None,
             )
-            .await?;
+            .await
+            .map_err(|err| DeviceError::CreationError(err))?;
         Ok(Self {
             adapter,
             device,
@@ -158,13 +170,11 @@ impl Device {
         shader: &str,
         entry_point: &str,
         workgroup_dimensions: [u32; N],
-    ) -> Option<ShaderModule>
+    ) -> Result<ShaderModule, DeviceError>
     where
         [u32; N]: Dimensions,
     {
-        // FIXME: change option to result later
-        //
-        // FIXME: this is also some terrible string manipulation. Find a better pure-regex alternative.
+        // TODO: this is some terrible string manipulation. Find a better pure-regex alternative.
         let mut modified_shader = shader.to_string();
         let mut modified = false;
         if let Some(entry_pos) = shader.find(&("fn ".to_string() + entry_point)) {
@@ -192,9 +202,9 @@ impl Device {
             }
         }
         if !modified {
-            return None;
+            return Err(DeviceError::ShaderWorkgroupSizeNotFound);
         }
-        Some(self.create_shader_module(&modified_shader, entry_point))
+        Ok(self.create_shader_module(&modified_shader, entry_point))
     }
     /// Creates a buffer.
     pub fn create_buffer<T: ShaderType + WriteInto>(

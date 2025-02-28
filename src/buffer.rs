@@ -2,6 +2,7 @@ use encase::{
     ShaderType, StorageBuffer, UniformBuffer,
     internal::{ReadFrom, WriteInto},
 };
+use thiserror::Error;
 use wgpu::{
     BindingResource, BufferDescriptor,
     util::{BufferInitDescriptor, DeviceExt},
@@ -58,6 +59,14 @@ impl BufferContents {
             BufferContents::Data(data) => data.len() as u32,
         }
     }
+}
+
+#[derive(Error, Debug)]
+pub enum BufferError {
+    #[error("Cannot read from a non-output buffer.")]
+    NotOutputBuffer,
+    // #[error("Not enough memory space in output")]
+    // NotEnoughOutputSpace,
 }
 
 impl<'a> Buffer<'a> {
@@ -155,12 +164,12 @@ impl<'a> Buffer<'a> {
     }
     /// Read the data in the buffer. This makes the buffer temporarily accessible
     /// to the CPU to write the buffer contents to the output mutable reference.
-    pub async fn read<T>(&self, output: &mut T)
+    pub async fn read<T>(&self, output: &mut T) -> Result<(), BufferError>
     where
         T: ShaderType + ReadFrom,
     {
         if !self.output() {
-            return;
+            return Err(BufferError::NotOutputBuffer);
         }
         self.device.copy_to_staging(self);
 
@@ -183,5 +192,6 @@ impl<'a> Buffer<'a> {
             }
             staging.unmap();
         }
+        Ok(())
     }
 }

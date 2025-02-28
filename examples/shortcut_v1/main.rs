@@ -48,7 +48,10 @@ async fn compute(data: &mut Vec<f32>, dim: u32) {
         vec![vec![&mut input_buffer, &mut output_buffer, &mut dim_buffer]];
     let shader = device.create_shader_module(include_str!("shortcut.wgsl"), "main");
     device.execute(&groups, shader, [dim.div_ceil(16), dim.div_ceil(16)]);
-    output_buffer.read(data).await;
+    output_buffer
+        .read(data)
+        .await
+        .expect("Failed to fetch data from output buffer");
 }
 // V1 cpu compute, parallel (sort of)
 fn cpu_compute(data: &[f32], dim: u32) -> Vec<f32> {
