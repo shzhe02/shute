@@ -20,7 +20,7 @@ fn initialize_gpu_buffer<'a>(device: &'a Device, data: &'a Vec<u32>) -> Buffer<'
         BufferInit::WithData(data),
     );
     device.queue().submit([]);
-    device.block_until_complete();
+    device.synchronize();
     buffer
 }
 

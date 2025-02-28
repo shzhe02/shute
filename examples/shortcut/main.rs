@@ -3,7 +3,7 @@ use shute::{Buffer, Instance, LimitType, PowerPreference};
 
 fn generate_data(dim: usize) -> Vec<f32> {
     let mut rng = rand::thread_rng();
-    let mut data: Vec<f32> = (0..dim * dim).map(|_| rng.gen::<f32>()).collect();
+    let mut data: Vec<f32> = (0..dim * dim).map(|_| rng.r#gen::<f32>()).collect();
     for i in 0..dim {
         data[dim * i + i] = 0.0;
     }
