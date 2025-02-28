@@ -26,7 +26,7 @@ fn compute(data: &mut Vec<u32>) {
     );
     let groups = vec![vec![&mut input_buffer, &mut output_buffer]];
     device.execute(&groups, shader, [size as u32]);
-    pollster::block_on(output_buffer.fetch_data_from_device(data));
+    pollster::block_on(output_buffer.read(data));
 }
 
 fn main() {

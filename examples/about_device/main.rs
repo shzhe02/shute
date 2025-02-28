@@ -1,3 +1,6 @@
+//! Quick example for seeing what devices are returned through the `Instance::autoselect` method
+//! with all three power preferences, as well as all the adapters returned through `Instance::devices`.
+
 use shute::{Device, Instance, LimitType, PowerPreference};
 
 async fn check() {

@@ -1,3 +1,9 @@
+//! A slightly optimized implementation of the min-plus matrix multiplication algorithm
+//! (which I call "shortcut algorithm" for convenience).
+//!
+//! Implementation is more or less from [Programming Parallel Computers, Chapter 4, V2](https://ppc.cs.aalto.fi/ch4/v2/).
+//! CPU reference function is derived from [Chapter 2, V2](https://ppc.cs.aalto.fi/ch2/v2/).
+
 use rand::Rng;
 use shute::{Buffer, BufferInit, BufferType, Instance, LimitType, PowerPreference, ShaderType};
 
@@ -63,7 +69,7 @@ fn compute(data: &mut Vec<f32>, dim: u32) {
     device.execute(&groups, padding_shader, [1, nn]);
     let shader = device.create_shader_module(include_str!("shortcut.wgsl"), "main");
     device.execute(&groups, shader, [nn / 64, nn / 64]);
-    pollster::block_on(output_buffer.fetch_data_from_device(data));
+    pollster::block_on(output_buffer.read(data));
 }
 
 // V1 cpu compute, parallel (sort of)
@@ -85,13 +91,7 @@ fn cpu_compute(data: &[f32], dim: u32) -> Vec<f32> {
             let mut smallest = f32::MAX;
             for k in 0..dim {
                 let sum = data[dim * i + k] + transposed[dim * j + k];
-                smallest = {
-                    if smallest < sum {
-                        smallest
-                    } else {
-                        sum
-                    }
-                };
+                smallest = if smallest < sum { smallest } else { sum };
             }
             output[dim * i + j].store(smallest, std::sync::atomic::Ordering::Relaxed);
         }
