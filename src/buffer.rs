@@ -69,10 +69,6 @@ impl<'a> Buffer<'a> {
         buffer_type: BufferType,
         contents: BufferContents,
     ) -> Self {
-        // let size: u64 = match &contents {
-        //     BufferContents::Size(size) => *size as u64,
-        //     BufferContents::Data(data) => data.len() as u64,
-        // };
         let usage = {
             let buffer_type = match buffer_type {
                 BufferType::StorageBuffer { .. } => wgpu::BufferUsages::STORAGE,
@@ -102,16 +98,6 @@ impl<'a> Buffer<'a> {
             buffer_type,
             contents,
             buffer,
-            // staging: if let BufferType::StorageBuffer { output: true, .. } = buffer_type {
-            //     Some(device.device().create_buffer(&wgpu::BufferDescriptor {
-            //         label: label.map(|s| s.to_string() + "-output").as_deref(),
-            //         size,
-            //         usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            //         mapped_at_creation: false,
-            //     }))
-            // } else {
-            //     None
-            // },
         }
     }
     /// Get the size of the buffer (in bytes).
@@ -146,9 +132,6 @@ impl<'a> Buffer<'a> {
     pub(crate) fn buffer(&self) -> &wgpu::Buffer {
         &self.buffer
     }
-    // pub fn staging(&self) -> &Option<wgpu::Buffer> {
-    //     &self.staging
-    // }
     // TODO: This should be "write_buffer" or similar.
     /// Write data to the buffer.
     pub fn send_data_to_device<T>(&self, data: &T)
