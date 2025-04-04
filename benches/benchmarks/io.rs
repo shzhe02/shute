@@ -1,13 +1,13 @@
 use std::time::Duration;
 
-use criterion::{criterion_group, Criterion};
-use rand::{thread_rng, Rng};
+use criterion::{Criterion, criterion_group};
+use rand::{Rng, thread_rng};
 use shute::{Buffer, BufferInit, BufferType, Device, Instance, LimitType};
 use wgpu::PowerPreference;
 
 fn generate_data(size: usize) -> Vec<u32> {
     let mut rng = thread_rng();
-    (0..size).map(|_| rng.gen()).collect()
+    (0..size).map(|_| rng.r#gen()).collect()
 }
 
 fn initialize_gpu_buffer<'a>(device: &'a Device, data: &'a Vec<u32>) -> Buffer<'a> {
@@ -19,13 +19,12 @@ fn initialize_gpu_buffer<'a>(device: &'a Device, data: &'a Vec<u32>) -> Buffer<'
         },
         BufferInit::WithData(data),
     );
-    device.queue().submit([]);
     device.synchronize();
     buffer
 }
 
 fn pull_data_from_buffer(buffer: &mut Buffer, output: &mut Vec<u32>) {
-    pollster::block_on(buffer.fetch_data_from_device(output));
+    pollster::block_on(buffer.read(output)).expect("unable to read buffer");
 }
 
 fn io_oneshot(c: &mut Criterion) {
@@ -42,7 +41,7 @@ fn io_oneshot(c: &mut Criterion) {
     // Benchmarks for sending data from CPU to GPU
 
     let size = device.limits().max_buffer_size as usize / size_of::<u32>();
-    device.override_staging((size * size_of::<u32>()) as u32);
+    device.override_staging_size((size * size_of::<u32>()) as u32);
     dbg!(size);
     let mut buffer: Option<Buffer> = None;
     let data = generate_data(size);
