@@ -20,6 +20,7 @@ async fn check() {
         "Autoselected Device (Performance): {:#?}",
         performance_device.info()
     );
+    println!("Limits: {:#?}", performance_device.limits());
     println!("=====");
     let lowpower_device = instance
         .autoselect(PowerPreference::LowPower, shute::LimitType::Highest)
@@ -29,6 +30,7 @@ async fn check() {
         "Autoselected Device (Low Power): {:#?}",
         lowpower_device.info()
     );
+    println!("Limits: {:#?}", lowpower_device.limits());
     println!("=====");
     let no_preference_device = instance
         .autoselect(PowerPreference::None, shute::LimitType::Highest)
@@ -38,6 +40,7 @@ async fn check() {
         "Autoselected Device (Performance): {:#?}",
         no_preference_device.info()
     );
+    println!("Limits: {:#?}", no_preference_device.limits());
 }
 
 fn main() {
