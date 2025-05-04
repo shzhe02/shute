@@ -3,10 +3,7 @@ use encase::{
     internal::{ReadFrom, WriteInto},
 };
 use thiserror::Error;
-use wgpu::{
-    BindingResource, BufferDescriptor,
-    util::{BufferInitDescriptor, DeviceExt},
-};
+use wgpu::util::DeviceExt;
 
 use crate::Device;
 
@@ -86,18 +83,20 @@ impl<'a> Buffer<'a> {
             buffer_type | wgpu::BufferUsages::COPY_SRC | wgpu::BufferUsages::COPY_DST
         };
         let buffer = match &contents {
-            BufferContents::Size(size) => device.device().create_buffer(&BufferDescriptor {
+            BufferContents::Size(size) => device.device().create_buffer(&wgpu::BufferDescriptor {
                 label,
                 size: *size as u64,
                 usage,
                 mapped_at_creation: false,
             }),
             BufferContents::Data(data) => {
-                device.device().create_buffer_init(&BufferInitDescriptor {
-                    label,
-                    contents: &data[..],
-                    usage,
-                })
+                device
+                    .device()
+                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label,
+                        contents: &data[..],
+                        usage,
+                    })
             }
         };
         device.queue().submit([]);
@@ -135,7 +134,7 @@ impl<'a> Buffer<'a> {
     /// Note: This method is meant to be used only within the crate.
     ///
     /// Return the binding view of the entire buffer.
-    pub(crate) fn as_entire_binding(&self) -> BindingResource<'_> {
+    pub(crate) fn as_entire_binding(&self) -> wgpu::BindingResource<'_> {
         self.buffer.as_entire_binding()
     }
     pub(crate) fn buffer(&self) -> &wgpu::Buffer {
@@ -180,10 +179,7 @@ impl<'a> Buffer<'a> {
             let slice = staging.slice(..output_size);
             let (tx, rx) = flume::bounded(1);
             slice.map_async(wgpu::MapMode::Read, move |r| tx.send(r).unwrap());
-            self.device
-                .device()
-                .poll(wgpu::Maintain::wait())
-                .panic_on_timeout();
+            self.device.device().poll(wgpu::PollType::Wait).unwrap();
             rx.recv_async().await.unwrap().unwrap();
             {
                 let view = slice.get_mapped_range();

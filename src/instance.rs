@@ -15,7 +15,7 @@ impl Instance {
     /// Create a new instance of Shute.
     pub fn new() -> Instance {
         Instance {
-            instance: wgpu::Instance::new(wgpu::InstanceDescriptor {
+            instance: wgpu::Instance::new(&wgpu::InstanceDescriptor {
                 backends: wgpu::Backends::all(),
                 flags: if cfg!(debug_assertions) {
                     wgpu::InstanceFlags::DEBUG
@@ -24,8 +24,7 @@ impl Instance {
                 } else {
                     wgpu::InstanceFlags::DISCARD_HAL_LABELS
                 },
-                dx12_shader_compiler: wgpu::Dx12Compiler::Fxc, // TODO: Somehow make this modifiable to Dxc
-                gles_minor_version: wgpu::Gles3MinorVersion::Automatic,
+                backend_options: wgpu::BackendOptions::default(),
             }),
         }
     }
@@ -55,7 +54,7 @@ impl Instance {
                 compatible_surface: None,
             })
             .await
-            .ok_or_else(|| DeviceError::DeviceNotFound)?;
+            .or_else(|_| Err(DeviceError::DeviceNotFound))?;
         Device::new(adapter, limit_type).await
     }
 }

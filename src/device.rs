@@ -123,15 +123,13 @@ impl Device {
             LimitType::Downlevel => wgpu::Limits::downlevel_defaults(),
         };
         let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    label: None,
-                    required_features: wgpu::Features::empty(),
-                    required_limits: limits.clone(),
-                    memory_hints: wgpu::MemoryHints::Performance,
-                },
-                None,
-            )
+            .request_device(&wgpu::DeviceDescriptor {
+                label: None,
+                required_features: wgpu::Features::empty(),
+                required_limits: limits.clone(),
+                memory_hints: wgpu::MemoryHints::Performance,
+                trace: wgpu::Trace::Off,
+            })
             .await
             .map_err(|err| DeviceError::CreationError(err))?;
         Ok(Self {
@@ -378,6 +376,6 @@ impl Device {
     /// Waits until the GPU queue is empty. That is, this method blocks further execution on the
     /// CPU side until the GPU is done doing all work given to it.
     pub fn synchronize(&self) {
-        self.device.poll(wgpu::Maintain::Wait);
+        self.device.poll(wgpu::PollType::Wait).unwrap();
     }
 }

@@ -23,13 +23,18 @@ struct Input {
 }
 
 fn compute(data: &mut Vec<f32>, dim: u32) {
+    use std::time::Instant;
+
+    let now = Instant::now();
     let nn = dim.div_ceil(64) * 64;
     let instance = Instance::new();
     let device = pollster::block_on(
         instance.autoselect(PowerPreference::HighPerformance, LimitType::Highest),
     )
     .unwrap();
-
+    let elapsed = now.elapsed();
+    println!("Device initialized in {elapsed:?}");
+    let now = Instant::now();
     let mut input_buffer = device.create_buffer(
         Some("input"),
         BufferType::StorageBuffer {
@@ -65,11 +70,24 @@ fn compute(data: &mut Vec<f32>, dim: u32) {
         &mut output_buffer,
         &mut param_buffer,
     ]];
+    let elapsed = now.elapsed();
+    println!("Buffers initialized in {elapsed:?}");
+    let now = Instant::now();
     let padding_shader = device.create_shader_module(include_str!("padding.wgsl"), "main");
     device.execute(&groups, padding_shader, [1, nn]);
+    device.synchronize();
+    let elapsed = now.elapsed();
+    println!("Padding shader executed in in {elapsed:?}");
+    let now = Instant::now();
     let shader = device.create_shader_module(include_str!("shortcut.wgsl"), "main");
     device.execute(&groups, shader, [nn / 64, nn / 64]);
+    device.synchronize();
+    let elapsed = now.elapsed();
+    println!("Execution completed in {elapsed:?}");
+    let now = Instant::now();
     pollster::block_on(output_buffer.read(data)).expect("Failed to fetch data from output buffer");
+    let elapsed = now.elapsed();
+    println!("Output read in {elapsed:?}");
 }
 
 // V1 cpu compute, parallel (sort of)
