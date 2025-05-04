@@ -263,6 +263,9 @@ impl Device {
     ) where
         [u32; N]: Dimensions,
     {
+        use std::time::Instant;
+        let now = Instant::now();
+
         let (bind_group_layouts, bind_groups): (Vec<_>, Vec<_>) = buffers
             .iter()
             .map(|group| {
@@ -307,6 +310,9 @@ impl Device {
                 (layout, group)
             })
             .unzip();
+        let elapsed = now.elapsed();
+        println!("Bind groups created in {elapsed:?}");
+        let now = Instant::now();
         let pipeline_layout = self
             .device
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -326,6 +332,9 @@ impl Device {
                 compilation_options: Default::default(),
                 cache: None,
             });
+        let elapsed = now.elapsed();
+        println!("Pipeline created in {elapsed:?}");
+        let now = Instant::now();
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
@@ -344,6 +353,9 @@ impl Device {
                 dispatch_dimensions.z(),
             );
         }
+        let elapsed = now.elapsed();
+        println!("Compute dispatched in {elapsed:?}");
+        let now = Instant::now();
         if let Some(max_output_buffer_size) = buffers
             .iter()
             .flatten()
@@ -361,7 +373,12 @@ impl Device {
                 self.staging_size.replace(Some(max_output_buffer_size));
             }
         }
-        self.queue.submit(Some(encoder.finish()));
+        let elapsed = now.elapsed();
+        println!("Staging buffer resized in {elapsed:?}");
+        let now = Instant::now();
+        self.queue.submit([encoder.finish()]);
+        let elapsed = now.elapsed();
+        println!("Staging buffer submitted in {elapsed:?}");
     }
     /// Copies the data from a GPU-mapped buffer to the staging buffer.
     pub(crate) fn copy_to_staging(&self, buffer: &Buffer) {
