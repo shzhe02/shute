@@ -11,10 +11,11 @@ struct Input {
 fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     let i = id.x;
     var sum: f32 = 0.0;
-    var curr = input[i];
+    let base = input[i];
+    var curr = base;
     for (var k = 1u; k <= params.powers; k += 1u) {
         sum += curr;
-        curr *= input[i];
+        curr *= base;
     }
     output[i] = sum;
 }
