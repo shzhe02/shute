@@ -34,22 +34,14 @@ fn compute(data: &mut Vec<f32>, powers: u32) {
         BufferInit::WithData(Input { powers }),
     );
     let shader = device
-        .create_shader_module_with_workgroup_size(
-            include_str!("powers.wgsl"),
-            "main",
-            [1024],
-        )
+        .create_shader_module_with_workgroup_size(include_str!("powers.wgsl"), "main", [1024])
         .expect("Failed to compile shader module");
     let groups = vec![vec![
         &mut input_buffer,
         &mut output_buffer,
         &mut param_buffer,
     ]];
-    device.execute(
-        &groups,
-        shader,
-        [(data.len() as u32).div_ceil(1024)],
-    );
+    device.execute(&groups, shader, [(data.len() as u32).div_ceil(1024)]);
     pollster::block_on(output_buffer.read(data)).expect("Could not read output");
 }
 
@@ -64,6 +56,34 @@ fn powers_bench(c: &mut Criterion) {
     // }
     // group.finish();
     let mut group = c.benchmark_group("Powers (with varying intensity)");
+    for power in (1..=9).into_iter() {
+        let mut data = (1..=10000000).map(|num| num as f32).collect();
+        group.throughput(criterion::Throughput::Elements(power));
+        group.bench_with_input(BenchmarkId::from_parameter(power), &power, |b, _| {
+            b.iter(|| compute(&mut data, power as u32));
+        });
+    }
+    for power in (10..=90).into_iter().step_by(10) {
+        let mut data = (1..=10000000).map(|num| num as f32).collect();
+        group.throughput(criterion::Throughput::Elements(power));
+        group.bench_with_input(BenchmarkId::from_parameter(power), &power, |b, _| {
+            b.iter(|| compute(&mut data, power as u32));
+        });
+    }
+    for power in (100..=900).into_iter().step_by(100) {
+        let mut data = (1..=10000000).map(|num| num as f32).collect();
+        group.throughput(criterion::Throughput::Elements(power));
+        group.bench_with_input(BenchmarkId::from_parameter(power), &power, |b, _| {
+            b.iter(|| compute(&mut data, power as u32));
+        });
+    }
+    for power in (1000..=9000).into_iter().step_by(1000) {
+        let mut data = (1..=10000000).map(|num| num as f32).collect();
+        group.throughput(criterion::Throughput::Elements(power));
+        group.bench_with_input(BenchmarkId::from_parameter(power), &power, |b, _| {
+            b.iter(|| compute(&mut data, power as u32));
+        });
+    }
     for power in (10000..=100000).into_iter().step_by(10000) {
         let mut data = (1..=10000000).map(|num| num as f32).collect();
         group.throughput(criterion::Throughput::Elements(power));
